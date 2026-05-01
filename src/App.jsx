@@ -5,7 +5,9 @@ import {
   TrendingUp, Target, Zap, Brain, Send, Bot, Star, MapPin,
   ArrowUpRight, Linkedin, Database, UserPlus,
   Award, AlertCircle, ThumbsUp, ThumbsDown, Pause, GripVertical, Trash2,
-  Edit3, Save, Sliders, Layers, FileText, Clock, ChevronDown
+  Edit3, Save, Sliders, Layers, FileText, Clock, ChevronDown,
+  Calendar, ClipboardList, BarChart2, Flag, Shield, Activity,
+  PlayCircle, CheckCircle2, XCircle, HelpCircle, BookOpen, Lightbulb
 } from "lucide-react";
 
 /* ============================================================
@@ -123,7 +125,7 @@ const PERSONAS = {
     avatarGrad: "from-indigo-500 to-violet-500",
     description: "Full pipeline · AI scores · alerts",
     color: "indigo",
-    navItems: ["dashboard", "requisitions", "jd-generator", "sourcing", "screening-hub"],
+    navItems: ["dashboard", "requisitions", "jd-generator", "sourcing", "screening-hub", "interviews"],
   },
   hiringManager: {
     key: "hiringManager",
@@ -132,7 +134,7 @@ const PERSONAS = {
     avatarGrad: "from-violet-500 to-fuchsia-500",
     description: "Shortlisted candidates · interview feedback",
     color: "violet",
-    navItems: ["dashboard", "requisitions", "screening-hub"],
+    navItems: ["dashboard", "requisitions", "interviews", "screening-hub"],
   },
   deliveryManager: {
     key: "deliveryManager",
@@ -159,7 +161,7 @@ const PERSONAS = {
     avatarGrad: "from-slate-500 to-slate-700",
     description: "Configuration · system settings",
     color: "slate",
-    navItems: ["dashboard", "requisitions", "jd-generator", "sourcing", "screening-hub", "admin"],
+    navItems: ["dashboard", "requisitions", "jd-generator", "sourcing", "screening-hub", "interviews", "admin"],
   },
 };
 
@@ -194,6 +196,963 @@ const hrMetrics = {
     { stage: "Interviewed → Offered",    rate: 29, benchmark: 40 },
     { stage: "Offered → Hired",          rate: 50, benchmark: 80 },
   ],
+};
+
+
+/* ============================================================
+   INTERVIEW INTELLIGENCE — MOCK DATA
+   ============================================================ */
+
+const interviewRounds = ["L1 — Technical Screen", "L2 — System Design", "L3 — Hiring Manager", "HR — Culture & Comp"];
+
+/* Per-candidate interview records */
+const interviewRecords = {
+  "c-1": { // Priya Raman — Interviewed
+    rounds: [
+      { id: "r1", round: "L1 — Technical Screen",   interviewer: "Divya Nair",    date: "Apr 24, 2025", status: "Completed", kitGenerated: true,
+        feedback: { technical: 8.5, communication: 9.0, problemSolving: 8.8, cultureFit: 8.5, comments: "Excellent problem articulation. Walked through a clean microservices decomposition, identified edge cases proactively. Strong communicator — no hand-holding needed.", notes: "Asked good clarifying questions. Seemed genuinely excited about the fintech domain.", recommendation: "Proceed" } },
+      { id: "r2", round: "L2 — System Design",      interviewer: "Ankit Sharma",  date: "Apr 28, 2025", status: "Completed", kitGenerated: true,
+        feedback: { technical: 9.0, communication: 9.2, problemSolving: 9.1, cultureFit: 8.8, comments: "Exceptional system design round. Designed a multi-tenant audit log with correct WORM semantics and S3 cold-storage strategy. Introduced idempotency keys unprompted.", notes: "Best system design I've seen this quarter. Would trust her with full ownership.", recommendation: "Proceed" } },
+      { id: "r3", round: "L3 — Hiring Manager",     interviewer: "Sanjay R (HM)", date: "May 3, 2025",  status: "Scheduled", kitGenerated: false, feedback: null },
+      { id: "r4", round: "HR — Culture & Comp",     interviewer: "Riya K",        date: "—",            status: "Pending",   kitGenerated: false, feedback: null },
+    ]
+  },
+  "c-2": { // Marcus Webb — Shortlisted
+    rounds: [
+      { id: "r5", round: "L1 — Technical Screen",   interviewer: "Divya Nair",    date: "Apr 26, 2025", status: "Completed", kitGenerated: true,
+        feedback: { technical: 9.5, communication: 8.8, problemSolving: 9.2, cultureFit: 7.5, comments: "Outstanding technical depth — best Big-O reasoning I've seen. Strong on distributed systems. Slightly reserved on cultural questions; doesn't open up easily.", notes: "Culture fit is the question. Technically exceptional.", recommendation: "Proceed" } },
+      { id: "r6", round: "L2 — System Design",      interviewer: "Ankit Sharma",  date: "May 3, 2025",  status: "Scheduled", kitGenerated: false, feedback: null },
+    ]
+  },
+  "c-6": { // Nina Patel — Offered (all rounds complete)
+    rounds: [
+      { id: "r7", round: "L1 — Technical Screen",   interviewer: "Divya Nair",    date: "Apr 20, 2025", status: "Completed", kitGenerated: true,
+        feedback: { technical: 9.1, communication: 9.4, problemSolving: 9.0, cultureFit: 9.2, comments: "Rare combination of technical depth and communication clarity. Built comparable systems at Freshworks. Coding was clean, explained every decision. No hesitation.", notes: "Sent a follow-up email within the hour summarising what she'd do differently. Impressive.", recommendation: "Proceed" } },
+      { id: "r8", round: "L2 — System Design",      interviewer: "Ankit Sharma",  date: "Apr 21, 2025", status: "Completed", kitGenerated: true,
+        feedback: { technical: 9.3, communication: 9.4, problemSolving: 9.2, cultureFit: 9.1, comments: "Strong hire. Designed the Apex Banking event pipeline with correct partitioning, failure modes, and exactly-once delivery semantics. Proposed an event sourcing approach we hadn't considered.", notes: "Went beyond the brief. Clear that she's thought about this class of problem deeply.", recommendation: "Proceed" } },
+      { id: "r9", round: "L3 — Hiring Manager",     interviewer: "Sanjay R (HM)", date: "Apr 21, 2025", status: "Completed", kitGenerated: true,
+        feedback: { technical: 8.8, communication: 9.5, problemSolving: 8.9, cultureFit: 9.4, comments: "Strong hire. Nina asks better questions than most candidates at offer stage. Showed initiative in asking about team charter and Q3 milestones.", notes: "Told me she sees this as a 3-year engagement. That's exactly what we need.", recommendation: "Proceed" } },
+      { id: "r10", round: "HR — Culture & Comp",    interviewer: "Riya K",        date: "Apr 21, 2025", status: "Completed", kitGenerated: true,
+        feedback: { technical: null, communication: 9.0, problemSolving: null, cultureFit: 9.3, comments: "Comp fully aligned. Nina raised no counter-offer. Start date confirmed for 30 days. Positive references — 2 provided unprompted. Strong culture signal.", notes: "Clean HR round. Ready to offer.", recommendation: "Proceed" } },
+    ]
+  },
+  "c-9": { // Rahul Mehta — Shortlisted  
+    rounds: [
+      { id: "r11", round: "L1 — Technical Screen",  interviewer: "Divya Nair",    date: "Apr 30, 2025", status: "Completed", kitGenerated: true,
+        feedback: { technical: 8.7, communication: 8.3, problemSolving: 8.4, cultureFit: 8.0, comments: "Solid engineering fundamentals. PostgreSQL knowledge is strong but Java-centric thinking leaks through. Asked clarifying questions but answers were verbose at times.", notes: "Good engineer, needs TypeScript exposure. Core instincts are sound.", recommendation: "Hold" } },
+      { id: "r12", round: "L2 — System Design",     interviewer: "Ankit Sharma",  date: "May 5, 2025",  status: "Scheduled", kitGenerated: false, feedback: null },
+    ]
+  },
+};
+
+/* AI Interview Kit templates keyed by candidate */
+const interviewKits = {
+  "c-1": {
+    role: "Senior Full-Stack Engineer",
+    candidate: "Priya Raman",
+    focusAreas: [
+      { area: "Kubernetes / container orchestration", reason: "Gap: Limited Kubernetes exposure identified in resume review", priority: "high" },
+      { area: "Fintech compliance (PCI-DSS, SOC2)", reason: "Gap: No prior fintech compliance experience", priority: "high" },
+      { area: "Large-scale TypeScript architecture", reason: "Strength — verify depth under pressure and at scale", priority: "medium" },
+    ],
+    structure: [
+      { segment: "Intro & context setting", mins: 5 },
+      { segment: "Technical deep-dive (Q1–Q3)", mins: 25 },
+      { segment: "System design problem", mins: 30 },
+      { segment: "Behavioural & culture", mins: 15 },
+      { segment: "Candidate Q&A", mins: 10 },
+      { segment: "Interviewer debrief notes", mins: 5 },
+    ],
+    technicalQs: [
+      "Walk me through how you'd design an audit trail system that retains 7 years of records, supports tenant isolation, and can be queried in under 200ms.",
+      "You've shipped a zero-downtime DB migration at Stripe. What was the biggest risk, how did you mitigate it, and what would you do differently?",
+      "Describe how you'd introduce TypeScript into a large, existing JavaScript codebase incrementally — including how you'd manage the team's ramp-up.",
+      "How would you structure a multi-tenant Postgres schema for a banking platform where each tenant has different data retention requirements?",
+      "What's your approach when you inherit a codebase with no tests, tight deadlines, and a need to ship new features?",
+    ],
+    behaviouralQs: [
+      "Tell me about a time you pushed back on a technical direction from a senior leader. What happened?",
+      "Describe a situation where requirements changed significantly mid-sprint. How did you handle it and what was the outcome?",
+      "How do you onboard yourself onto an unfamiliar codebase? Walk me through your last experience doing this.",
+      "Give me an example of mentoring a junior engineer who was struggling. What did you do and what was the result?",
+    ],
+    tips: [
+      "Probe on the Kubernetes gap — ask specifically about container networking and rolling deployments, not just 'have you used Kubernetes'",
+      "For the fintech question: look for awareness of compliance frameworks, not just theoretical knowledge",
+      "Candidate communicates well — if an answer is vague, it's intentional; push for specifics",
+      "She has competing offers — avoid a long debrief loop. Keep the round tight and decision-making fast.",
+    ]
+  },
+  "c-6": {
+    role: "Senior Full-Stack Engineer",
+    candidate: "Nina Patel",
+    focusAreas: [
+      { area: "IC vs leadership balance", reason: "Risk: Slightly senior for an IC role — verify motivation to stay hands-on", priority: "high" },
+      { area: "Microservices ownership at scale", reason: "Strength — verify end-to-end ownership breadth", priority: "medium" },
+      { area: "Fintech regulatory context", reason: "Validate prior exposure to banking-domain compliance", priority: "medium" },
+    ],
+    structure: [
+      { segment: "Intro & role alignment", mins: 5 },
+      { segment: "Leadership vs IC motivation", mins: 15 },
+      { segment: "Technical deep-dive", mins: 25 },
+      { segment: "Platform design problem", mins: 25 },
+      { segment: "Culture & team dynamics", mins: 15 },
+      { segment: "Q&A", mins: 10 },
+    ],
+    technicalQs: [
+      "You've led a platform team at Freshworks. How would you approach leading the Apex Banking platform as an IC, not a manager?",
+      "Describe the microservices architecture you owned at Freshworks — what was the hardest operational challenge and how did you solve it?",
+      "How would you design a real-time transaction monitoring service that must detect anomalies within 500ms for 10,000 TPS?",
+      "What's your approach to API versioning in a microservices environment with multiple downstream consumers?",
+    ],
+    behaviouralQs: [
+      "Tell me about a time you had to convince a team to adopt a technical standard you introduced. How did you build buy-in?",
+      "Describe a time when you were overloaded. How did you triage and who did you lean on?",
+      "How do you stay hands-on technically while also influencing broader architecture decisions?",
+    ],
+    tips: [
+      "Primary risk is over-levelling — spend time on IC motivation. Listen for 'I want to build', not just 'I want to influence'.",
+      "Nina communicates exceptionally well — use that as a signal, not a ceiling. Dig technical.",
+      "This candidate has a competing offer. If the round goes well, fast-track the debrief to same day.",
+      "Reference her unprompted CTO reference — ask what specifically the CTO valued in her.",
+    ]
+  },
+};
+
+const generateKit = (candidate) => interviewKits[candidate.id] || {
+  role: "Senior Engineer",
+  candidate: candidate.name,
+  focusAreas: candidate.gaps.map((g, i) => ({ area: g, reason: `Identified gap from resume review`, priority: i === 0 ? "high" : "medium" })),
+  structure: [
+    { segment: "Intro", mins: 5 },
+    { segment: "Technical deep-dive", mins: 30 },
+    { segment: "System design", mins: 30 },
+    { segment: "Behavioural", mins: 15 },
+    { segment: "Candidate Q&A", mins: 10 },
+  ],
+  technicalQs: [
+    `Walk me through the most complex ${candidate.skills[0] || "system"} problem you've solved recently.`,
+    `How would you approach scaling a ${candidate.skills[1] || "backend"} service to 10× its current load?`,
+    "Describe your approach to debugging a production incident with no logs and an ambiguous symptom.",
+    "How do you decide when to refactor vs rewrite a piece of legacy code?",
+    "What's your philosophy on code review — as a reviewer and as an author?",
+  ],
+  behaviouralQs: [
+    "Tell me about a time you disagreed with a technical decision. What happened?",
+    "Describe a project where you had to work with very ambiguous requirements.",
+    "How do you mentor engineers who are more junior than you?",
+    "Give me an example of a time you failed. What did you learn?",
+  ],
+  tips: [
+    `Focus on the identified gaps: ${candidate.gaps.join(", ") || "none flagged"}`,
+    "Probe for specific examples, not hypotheticals",
+    "Watch for communication clarity — candidate scored " + candidate.commScore + "/10 in screening",
+    "Keep the session to 90 minutes max. Decision within 24h ideally.",
+  ]
+};
+
+const getInterviewRecord = (candidateId) => interviewRecords[candidateId] || { rounds: [] };
+
+/* AI feedback summary generator (mock) */
+const generateAiFeedbackSummary = (rounds) => {
+  const completed = rounds.filter(r => r.feedback);
+  if (completed.length === 0) return null;
+
+  const avgTech  = completed.filter(r => r.feedback.technical).reduce((a, r) => a + r.feedback.technical, 0) / completed.filter(r => r.feedback.technical).length;
+  const avgComm  = completed.reduce((a, r) => a + r.feedback.communication, 0) / completed.length;
+  const avgPS    = completed.filter(r => r.feedback.problemSolving).reduce((a, r) => a + r.feedback.problemSolving, 0) / completed.filter(r => r.feedback.problemSolving).length;
+  const avgCulture = completed.reduce((a, r) => a + r.feedback.cultureFit, 0) / completed.length;
+  const allProceed = completed.every(r => r.feedback.recommendation === "Proceed");
+  const anyHold   = completed.some(r => r.feedback.recommendation === "Hold");
+
+  const confidence = Math.round(((avgTech + avgComm + avgPS + avgCulture) / 4) * 10);
+  const recommendation = allProceed ? "Hire" : anyHold ? "Hold" : "No Hire";
+
+  const inconsistencies = [];
+  if (completed.length > 1) {
+    const techScores = completed.filter(r => r.feedback.technical).map(r => r.feedback.technical);
+    if (Math.max(...techScores) - Math.min(...techScores) > 1.5) {
+      inconsistencies.push(`Technical scores vary by ${(Math.max(...techScores) - Math.min(...techScores)).toFixed(1)} points across rounds — review L1 vs L2 notes`);
+    }
+    const recs = completed.map(r => r.feedback.recommendation);
+    if (new Set(recs).size > 1) {
+      inconsistencies.push(`Split recommendation: interviewers disagree on ${recs.join(" vs ")}`);
+    }
+  }
+
+  return { avgTech: avgTech || 0, avgComm, avgPS: avgPS || 0, avgCulture, confidence, recommendation, inconsistencies, completedRounds: completed.length };
+};
+
+/* ============================================================
+   INTERVIEW DASHBOARD (tab inside requisition / standalone)
+   ============================================================ */
+const InterviewDashboard = ({ candidates, onOpenKit, onOpenFeedback, onOpenCandidate }) => {
+  const interviewCandidates = candidates.filter(c => ["Shortlisted", "Interviewed", "Offered"].includes(c.stage));
+
+  const statusColor = { Completed: "emerald", Scheduled: "indigo", Pending: "amber" };
+  const statusIcon  = { Completed: CheckCircle2, Scheduled: Calendar, Pending: HelpCircle };
+
+  return (
+    <div className="space-y-6">
+      {/* Summary strip */}
+      <div className="grid grid-cols-4 gap-3">
+        {[
+          { label: "In Interview Pipeline", value: interviewCandidates.length,
+            sub: "Shortlisted → Offered",  icon: Users,        color: "from-indigo-500 to-violet-500" },
+          { label: "Rounds Completed",      value: Object.values(interviewRecords).flatMap(r => r.rounds).filter(r => r.status === "Completed").length,
+            sub: "Across all candidates",  icon: CheckCircle2, color: "from-emerald-500 to-teal-500"  },
+          { label: "Pending Feedback",      value: Object.values(interviewRecords).flatMap(r => r.rounds).filter(r => r.status === "Completed" && !r.feedback).length,
+            sub: "Action needed",          icon: Flag,         color: "from-amber-500 to-orange-500"  },
+          { label: "Scheduled This Week",   value: Object.values(interviewRecords).flatMap(r => r.rounds).filter(r => r.status === "Scheduled").length,
+            sub: "Upcoming interviews",    icon: Calendar,     color: "from-fuchsia-500 to-pink-500"  },
+        ].map(m => {
+          const Icon = m.icon;
+          return (
+            <Card key={m.label} className="p-4 relative overflow-hidden">
+              <div className={`absolute -right-4 -top-4 w-20 h-20 rounded-full opacity-10 bg-gradient-to-br ${m.color}`} />
+              <div className="relative flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${m.color} flex items-center justify-center shrink-0`}>
+                  <Icon className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500 font-medium leading-tight">{m.label}</div>
+                  <div className="text-2xl font-bold text-slate-900 tabular-nums">{m.value}</div>
+                  <div className="text-[10px] text-slate-400">{m.sub}</div>
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Candidate interview rows */}
+      <div className="space-y-3">
+        {interviewCandidates.map(cand => {
+          const record = getInterviewRecord(cand.id);
+          const aiSummary = generateAiFeedbackSummary(record.rounds);
+          const pendingFeedback = record.rounds.filter(r => r.status === "Completed" && !r.feedback).length;
+
+          return (
+            <Card key={cand.id} className="overflow-hidden">
+              {/* Candidate header */}
+              <div className="flex items-center gap-4 px-5 py-4 border-b border-slate-100">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ${cand.match >= 90 ? "bg-emerald-500" : cand.match >= 80 ? "bg-indigo-500" : "bg-slate-400"}`}>
+                  {cand.name.split(" ").map(n => n[0]).join("")}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button onClick={() => onOpenCandidate(cand.id)} className="font-semibold text-sm text-slate-900 hover:text-indigo-700 transition">{cand.name}</button>
+                    <Pill tone={cand.stage === "Offered" ? "amber" : "violet"}>{cand.stage}</Pill>
+                    {pendingFeedback > 0 && <Pill tone="amber"><Flag className="w-3 h-3" />{pendingFeedback} feedback pending</Pill>}
+                    {aiSummary && (
+                      <Pill tone={aiSummary.recommendation === "Hire" ? "emerald" : aiSummary.recommendation === "Hold" ? "amber" : "rose"}>
+                        AI: {aiSummary.recommendation}
+                      </Pill>
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-400 mt-0.5">{cand.exp} yrs · {cand.source} · AI Fit: {cand.match}%</div>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button onClick={() => onOpenKit(cand)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
+                    <BookOpen className="w-3.5 h-3.5" />Generate Kit
+                  </button>
+                  {aiSummary && (
+                    <button onClick={() => onOpenFeedback(cand)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition">
+                      <BarChart2 className="w-3.5 h-3.5" />View Summary
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Round rows */}
+              {record.rounds.length > 0 && (
+                <div className="divide-y divide-slate-50">
+                  {record.rounds.map((rnd, ri) => {
+                    const StatusIcon = statusIcon[rnd.status] || HelpCircle;
+                    const sTone = statusColor[rnd.status] || "default";
+                    return (
+                      <div key={ri} className="flex items-center gap-4 px-5 py-3 hover:bg-slate-50/50 transition">
+                        <div className="w-32 shrink-0">
+                          <div className="text-xs font-semibold text-slate-700 truncate">{rnd.round.split("—")[0].trim()}</div>
+                          <div className="text-[10px] text-slate-400 truncate">{rnd.round.split("—")[1]?.trim()}</div>
+                        </div>
+                        <div className="text-xs text-slate-500 w-28 shrink-0">{rnd.interviewer}</div>
+                        <div className="text-xs text-slate-400 w-24 shrink-0">{rnd.date}</div>
+                        <div className="flex-1">
+                          <Pill tone={sTone}>
+                            <StatusIcon className="w-3 h-3" />{rnd.status}
+                          </Pill>
+                        </div>
+                        {rnd.feedback && (
+                          <div className="flex items-center gap-2 shrink-0">
+                            {["technical","communication","problemSolving","cultureFit"].filter(k => rnd.feedback[k]).map(k => (
+                              <div key={k} className="text-center">
+                                <div className="text-xs font-bold text-slate-800 tabular-nums">{rnd.feedback[k]}</div>
+                                <div className="text-[9px] text-slate-400 capitalize">{k === "problemSolving" ? "PS" : k === "cultureFit" ? "Cult." : k === "communication" ? "Comm." : "Tech."}</div>
+                              </div>
+                            ))}
+                            <Pill tone={rnd.feedback.recommendation === "Proceed" ? "emerald" : rnd.feedback.recommendation === "Hold" ? "amber" : "rose"}>
+                              {rnd.feedback.recommendation}
+                            </Pill>
+                          </div>
+                        )}
+                        {rnd.status === "Completed" && !rnd.feedback && (
+                          <button onClick={() => onOpenFeedback(cand, rnd)} className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg hover:bg-amber-100 transition shrink-0">
+                            Add feedback
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {record.rounds.length === 0 && (
+                <div className="px-5 py-3 text-xs text-slate-400 italic">No rounds scheduled yet.</div>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+/* ============================================================
+   AI INTERVIEW KIT
+   ============================================================ */
+const InterviewKit = ({ candidate, onBack, onAddFeedback }) => {
+  const kit = generateKit(candidate);
+  const [activeSection, setActiveSection] = useState("questions");
+
+  const sections = [
+    { key: "questions",  label: "Questions",      icon: HelpCircle },
+    { key: "focus",      label: "Focus Areas",    icon: Target },
+    { key: "structure",  label: "Structure",      icon: ClipboardList },
+    { key: "tips",       label: "Interviewer Tips",icon: Lightbulb },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Kit header */}
+      <div className="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 rounded-2xl p-6 text-white relative overflow-hidden">
+        <div className="absolute inset-0 opacity-5" style={{ backgroundImage: "radial-gradient(circle at 20% 50%, #6366f1 0%, transparent 50%), radial-gradient(circle at 80% 20%, #d946ef 0%, transparent 50%)" }} />
+        <div className="relative flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="w-4 h-4 text-violet-400" />
+              <span className="text-xs font-bold text-violet-400 uppercase tracking-widest">AI-Generated Interview Kit</span>
+            </div>
+            <h2 className="text-xl font-bold leading-tight">{kit.candidate}</h2>
+            <div className="text-slate-400 text-sm mt-1">{kit.role} · Generated from profile, gaps & JD alignment</div>
+          </div>
+          <button onClick={onBack} className="text-slate-400 hover:text-white transition text-sm flex items-center gap-1">
+            <X className="w-4 h-4" />Close
+          </button>
+        </div>
+        {/* Focus area pills */}
+        <div className="relative flex flex-wrap gap-2 mt-4">
+          {kit.focusAreas.map((f, i) => (
+            <span key={i} className={`px-2.5 py-1 text-[10px] font-bold rounded-full border uppercase tracking-wider ${f.priority === "high" ? "bg-rose-500/20 border-rose-500/40 text-rose-300" : "bg-white/10 border-white/20 text-slate-300"}`}>
+              {f.priority === "high" ? "⚠ " : ""}{f.area}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit">
+        {sections.map(s => {
+          const Icon = s.icon;
+          return (
+            <button key={s.key} onClick={() => setActiveSection(s.key)}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition ${activeSection === s.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+              <Icon className="w-3.5 h-3.5" />{s.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tab content */}
+      {activeSection === "questions" && (
+        <div className="grid grid-cols-2 gap-4">
+          <Card className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-7 h-7 rounded-lg bg-indigo-100 flex items-center justify-center"><Brain className="w-4 h-4 text-indigo-700" /></div>
+              <h3 className="font-bold text-slate-900">Technical Questions</h3>
+              <Pill tone="indigo">{kit.technicalQs.length}</Pill>
+            </div>
+            <ol className="space-y-3">
+              {kit.technicalQs.map((q, i) => (
+                <li key={i} className="flex gap-3">
+                  <span className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 shrink-0 mt-0.5">{i+1}</span>
+                  <p className="text-sm text-slate-700 leading-relaxed">{q}</p>
+                </li>
+              ))}
+            </ol>
+          </Card>
+          <Card className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center"><Users className="w-4 h-4 text-violet-700" /></div>
+              <h3 className="font-bold text-slate-900">Behavioural Questions</h3>
+              <Pill tone="violet">{kit.behaviouralQs.length}</Pill>
+            </div>
+            <ol className="space-y-3">
+              {kit.behaviouralQs.map((q, i) => (
+                <li key={i} className="flex gap-3">
+                  <span className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 shrink-0 mt-0.5">{i+1}</span>
+                  <p className="text-sm text-slate-700 leading-relaxed">{q}</p>
+                </li>
+              ))}
+            </ol>
+          </Card>
+        </div>
+      )}
+
+      {activeSection === "focus" && (
+        <div className="space-y-3">
+          {kit.focusAreas.map((f, i) => (
+            <Card key={i} className={`p-4 border-l-4 ${f.priority === "high" ? "border-l-rose-500" : "border-l-amber-400"}`}>
+              <div className="flex items-start gap-3">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${f.priority === "high" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>
+                  <Flag className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-bold text-slate-900 text-sm">{f.area}</span>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${f.priority === "high" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>{f.priority} priority</span>
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed">{f.reason}</p>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {activeSection === "structure" && (
+        <Card className="p-5">
+          <h3 className="font-bold text-slate-900 mb-4">Suggested Time Split — {kit.structure.reduce((a, s) => a + s.mins, 0)} minutes total</h3>
+          <div className="space-y-2">
+            {kit.structure.map((s, i) => {
+              const total = kit.structure.reduce((a, x) => a + x.mins, 0);
+              const pct = (s.mins / total) * 100;
+              return (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 shrink-0">{i+1}</div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span className="font-medium text-slate-800">{s.segment}</span>
+                      <span className="font-bold text-slate-600 tabular-nums text-xs">{s.mins} min</span>
+                    </div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-indigo-400 to-violet-500 rounded-full" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {activeSection === "tips" && (
+        <Card className="p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Lightbulb className="w-4 h-4 text-amber-500" />
+            <h3 className="font-bold text-slate-900">Interviewer Tips</h3>
+            <Pill tone="amber">AI-curated</Pill>
+          </div>
+          <ul className="space-y-3">
+            {kit.tips.map((tip, i) => (
+              <li key={i} className="flex gap-3 p-3 rounded-xl bg-amber-50 border border-amber-100">
+                <span className="text-amber-500 text-sm shrink-0">💡</span>
+                <p className="text-sm text-slate-700 leading-relaxed">{tip}</p>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {/* Action */}
+      <div className="flex gap-3">
+        <GradientButton icon={ClipboardList} onClick={onAddFeedback}>Add Interview Feedback</GradientButton>
+        <GradientButton variant="secondary" icon={FileText}>Export Kit as PDF</GradientButton>
+      </div>
+    </div>
+  );
+};
+
+/* ============================================================
+   FEEDBACK FORM
+   ============================================================ */
+const FeedbackForm = ({ candidate, round, onSubmit, onBack }) => {
+  const [scores, setScores] = useState({ technical: 0, communication: 0, problemSolving: 0, cultureFit: 0 });
+  const [comments, setComments] = useState("");
+  const [notes, setNotes] = useState("");
+  const [recommendation, setRecommendation] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [generating, setGenerating] = useState(false);
+
+  const criteria = [
+    { key: "technical",      label: "Technical Skills",  desc: "Depth, accuracy, and breadth of technical knowledge" },
+    { key: "communication",  label: "Communication",     desc: "Clarity, structure, and confidence in responses" },
+    { key: "problemSolving", label: "Problem Solving",   desc: "Logical thinking, approach to ambiguity, creativity" },
+    { key: "cultureFit",     label: "Culture Fit",       desc: "Collaboration, ownership mindset, team alignment" },
+  ];
+
+  const handleSubmit = () => {
+    setGenerating(true);
+    setTimeout(() => { setGenerating(false); setSubmitted(true); onSubmit({ scores, comments, notes, recommendation }); }, 1400);
+  };
+
+  const avg = Object.values(scores).filter(Boolean).length > 0
+    ? (Object.values(scores).reduce((a, b) => a + b, 0) / Object.values(scores).filter(Boolean).length).toFixed(1)
+    : null;
+
+  if (submitted) return (
+    <div className="text-center py-12">
+      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center mx-auto mb-4 shadow-lg">
+        <CheckCircle2 className="w-8 h-8 text-white" />
+      </div>
+      <div className="text-xl font-bold text-slate-900 mb-1">Feedback submitted</div>
+      <div className="text-sm text-slate-500 mb-6">AI is generating the feedback summary...</div>
+      <GradientButton onClick={onBack}>View AI Summary</GradientButton>
+    </div>
+  );
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">Interview Feedback</h2>
+          <div className="text-sm text-slate-500 mt-0.5">{candidate.name} · {round?.round || "General"}</div>
+        </div>
+        {avg && (
+          <div className="text-center">
+            <div className="text-2xl font-bold text-slate-900 tabular-nums">{avg}<span className="text-sm font-normal text-slate-400">/10</span></div>
+            <div className="text-[10px] text-slate-400 uppercase tracking-wider">Avg score</div>
+          </div>
+        )}
+      </div>
+
+      {/* Score sliders */}
+      <Card className="p-5">
+        <h3 className="font-bold text-slate-900 text-sm mb-4">Ratings</h3>
+        <div className="space-y-5">
+          {criteria.map(c => (
+            <div key={c.key}>
+              <div className="flex items-center justify-between mb-1">
+                <div>
+                  <span className="text-sm font-semibold text-slate-800">{c.label}</span>
+                  <span className="text-xs text-slate-400 ml-2">{c.desc}</span>
+                </div>
+                <span className="text-sm font-bold text-slate-900 tabular-nums w-8 text-right">{scores[c.key] || "—"}</span>
+              </div>
+              <input type="range" min="1" max="10" step="0.5"
+                value={scores[c.key] || 1}
+                onChange={e => setScores(p => ({ ...p, [c.key]: +e.target.value }))}
+                className="w-full accent-indigo-600"
+              />
+              <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                <span>1 — Poor</span><span>5 — Average</span><span>10 — Exceptional</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* Comments */}
+      <Card className="p-5">
+        <h3 className="font-bold text-slate-900 text-sm mb-3">Written Assessment</h3>
+        <textarea
+          value={comments} onChange={e => setComments(e.target.value)}
+          placeholder="Overall assessment — what stood out, what concerned you, specific examples..."
+          rows={4}
+          className="w-full px-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none"
+        />
+      </Card>
+
+      {/* Interview notes */}
+      <Card className="p-5">
+        <h3 className="font-bold text-slate-900 text-sm mb-1">Interview Notes / Transcript</h3>
+        <p className="text-xs text-slate-400 mb-3">Paste raw notes or transcript — AI will extract key signals automatically</p>
+        <textarea
+          value={notes} onChange={e => setNotes(e.target.value)}
+          placeholder="Paste interview notes, key quotes, or transcript excerpt here..."
+          rows={5}
+          className="w-full px-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none font-mono text-xs"
+        />
+      </Card>
+
+      {/* Recommendation */}
+      <Card className="p-5">
+        <h3 className="font-bold text-slate-900 text-sm mb-3">Your Recommendation</h3>
+        <div className="flex gap-3">
+          {["Proceed", "Hold", "Reject"].map(r => (
+            <button key={r} onClick={() => setRecommendation(r)}
+              className={`flex-1 py-3 rounded-xl border-2 text-sm font-bold transition ${
+                recommendation === r
+                  ? r === "Proceed" ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                  : r === "Hold" ? "border-amber-500 bg-amber-50 text-amber-700"
+                  : "border-rose-500 bg-rose-50 text-rose-700"
+                  : "border-slate-200 text-slate-500 hover:border-slate-300"
+              }`}>
+              {r === "Proceed" ? "✓ " : r === "Hold" ? "~ " : "✕ "}{r}
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      <GradientButton
+        onClick={handleSubmit}
+        className="w-full justify-center"
+        disabled={!recommendation || Object.values(scores).some(s => s === 0)}
+      >
+        {generating ? (
+          <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Generating AI Summary...</>
+        ) : (
+          <><Sparkles className="w-4 h-4" />Submit & Generate AI Summary</>
+        )}
+      </GradientButton>
+    </div>
+  );
+};
+
+/* ============================================================
+   AI FEEDBACK SUMMARY
+   ============================================================ */
+const AiFeedbackSummary = ({ candidate, onBack, onAddFeedback }) => {
+  const record = getInterviewRecord(candidate.id);
+  const summary = generateAiFeedbackSummary(record.rounds);
+
+  if (!summary) return (
+    <div className="text-center py-12">
+      <div className="text-slate-400 mb-4"><ClipboardList className="w-12 h-12 mx-auto text-slate-200" /></div>
+      <div className="font-semibold text-slate-700 mb-2">No completed rounds yet</div>
+      <div className="text-sm text-slate-400 mb-6">Complete at least one interview round and submit feedback to generate an AI summary.</div>
+      <GradientButton onClick={onAddFeedback} icon={ClipboardList}>Add Feedback Now</GradientButton>
+    </div>
+  );
+
+  const recColors = { Hire: "emerald", Hold: "amber", "No Hire": "rose" };
+  const scores = [
+    { label: "Technical",      val: summary.avgTech,    color: "bg-indigo-500" },
+    { label: "Communication",  val: summary.avgComm,    color: "bg-violet-500" },
+    { label: "Problem Solving",val: summary.avgPS,      color: "bg-fuchsia-500" },
+    { label: "Culture Fit",    val: summary.avgCulture, color: "bg-pink-500" },
+  ].filter(s => s.val);
+
+  return (
+    <div className="space-y-5">
+      {/* Summary header */}
+      <div className="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 rounded-2xl p-6 text-white">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles className="w-4 h-4 text-violet-400" />
+              <span className="text-xs font-bold text-violet-400 uppercase tracking-widest">AI Feedback Summary</span>
+            </div>
+            <h2 className="text-xl font-bold">{candidate.name}</h2>
+            <div className="text-slate-400 text-sm mt-0.5">{summary.completedRounds} round{summary.completedRounds > 1 ? "s" : ""} analysed · {record.rounds.length - summary.completedRounds} pending</div>
+          </div>
+          <div className="text-center">
+            <div className="w-16 h-16 relative">
+              <svg width="64" height="64" className="-rotate-90">
+                <circle cx="32" cy="32" r="26" stroke="rgba(255,255,255,0.1)" strokeWidth="5" fill="none" />
+                <circle cx="32" cy="32" r="26" stroke="url(#cg)" strokeWidth="5" fill="none"
+                  strokeDasharray={2 * Math.PI * 26}
+                  strokeDashoffset={2 * Math.PI * 26 * (1 - summary.confidence / 100)}
+                  strokeLinecap="round" />
+                <defs><linearGradient id="cg" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#6366f1" /><stop offset="100%" stopColor="#d946ef" /></linearGradient></defs>
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-sm font-bold text-white">{summary.confidence}%</span>
+              </div>
+            </div>
+            <div className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">Confidence</div>
+          </div>
+        </div>
+        <div className="mt-4 flex items-center gap-3">
+          <span className="text-sm text-slate-300">Final recommendation:</span>
+          <span className={`px-3 py-1 rounded-full text-sm font-bold ${
+            summary.recommendation === "Hire" ? "bg-emerald-500/30 text-emerald-300 border border-emerald-500/40"
+            : summary.recommendation === "Hold" ? "bg-amber-500/30 text-amber-300 border border-amber-500/40"
+            : "bg-rose-500/30 text-rose-300 border border-rose-500/40"
+          }`}>{summary.recommendation === "Hire" ? "✓ " : summary.recommendation === "Hold" ? "~ " : "✕ "}{summary.recommendation}</span>
+        </div>
+      </div>
+
+      {/* Score bars */}
+      <Card className="p-5">
+        <h3 className="font-bold text-slate-900 text-sm mb-4">Interview Scores — Average across {summary.completedRounds} round{summary.completedRounds > 1 ? "s" : ""}</h3>
+        <div className="space-y-3">
+          {scores.map(s => (
+            <div key={s.label}>
+              <div className="flex items-center justify-between text-sm mb-1.5">
+                <span className="font-medium text-slate-700">{s.label}</span>
+                <span className="font-bold text-slate-900 tabular-nums">{s.val.toFixed(1)}<span className="text-slate-400 font-normal">/10</span></span>
+              </div>
+              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full ${s.color}`} style={{ width: `${s.val * 10}%`, transition: "width 0.6s ease" }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* Round-by-round breakdown */}
+      <Card className="p-5">
+        <h3 className="font-bold text-slate-900 text-sm mb-4">Round-by-Round Feedback</h3>
+        <div className="space-y-4">
+          {record.rounds.filter(r => r.feedback).map((rnd, i) => (
+            <div key={i} className="p-4 rounded-xl border border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <span className="font-semibold text-sm text-slate-900">{rnd.round}</span>
+                  <span className="text-xs text-slate-400 ml-2">· {rnd.interviewer}</span>
+                </div>
+                <Pill tone={rnd.feedback.recommendation === "Proceed" ? "emerald" : rnd.feedback.recommendation === "Hold" ? "amber" : "rose"}>
+                  {rnd.feedback.recommendation}
+                </Pill>
+              </div>
+              <p className="text-sm text-slate-600 leading-relaxed">{rnd.feedback.comments}</p>
+              {rnd.feedback.notes && (
+                <p className="text-xs text-slate-400 mt-2 italic">"{rnd.feedback.notes}"</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* Inconsistencies */}
+      {summary.inconsistencies.length > 0 && (
+        <Card className="p-5 border-amber-200 bg-amber-50">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertCircle className="w-4 h-4 text-amber-600" />
+            <h3 className="font-bold text-amber-800 text-sm">Inconsistencies Detected</h3>
+          </div>
+          <ul className="space-y-2">
+            {summary.inconsistencies.map((inc, i) => (
+              <li key={i} className="flex gap-2 text-sm text-amber-800">
+                <span className="shrink-0">⚠</span>{inc}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      <GradientButton variant="secondary" onClick={onAddFeedback} icon={ClipboardList}>Add More Feedback</GradientButton>
+    </div>
+  );
+};
+
+/* ============================================================
+   INTERVIEW INTELLIGENCE PANEL (inside CandidateDetail)
+   ============================================================ */
+const InterviewIntelligencePanel = ({ candidate, onOpenKit, onOpenFeedback }) => {
+  const record = getInterviewRecord(candidate.id);
+  const summary = generateAiFeedbackSummary(record.rounds);
+  const completed = record.rounds.filter(r => r.feedback);
+  const pending = record.rounds.filter(r => r.status !== "Upcoming" && !r.feedback);
+
+  const riskFlags = [];
+  if (summary?.inconsistencies?.length > 0) riskFlags.push({ label: "Inconsistent feedback across rounds", level: "warning" });
+  if (candidate.commScore < 8) riskFlags.push({ label: "Communication score below threshold (8.0)", level: "warning" });
+  if (record.rounds.length === 0) riskFlags.push({ label: "No interview rounds scheduled", level: "info" });
+  if (pending.length > 0) riskFlags.push({ label: `${pending.length} round${pending.length > 1 ? "s" : ""} awaiting feedback`, level: "info" });
+
+  return (
+    <div className="space-y-5">
+      {/* Panel header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Activity className="w-4 h-4 text-violet-600" />
+          <h2 className="font-bold text-slate-900">Interview Intelligence</h2>
+          {summary && <Pill tone={summary.recommendation === "Hire" ? "emerald" : summary.recommendation === "Hold" ? "amber" : "rose"}>{summary.recommendation}</Pill>}
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => onOpenKit(candidate)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
+            <BookOpen className="w-3.5 h-3.5" />Generate Kit
+          </button>
+          <button onClick={() => onOpenFeedback(candidate)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition">
+            <BarChart2 className="w-3.5 h-3.5" />View Summary
+          </button>
+        </div>
+      </div>
+
+      {/* Grid: scores + flags */}
+      <div className="grid grid-cols-2 gap-4">
+        {/* Left — interview scores */}
+        <div className="space-y-3">
+          <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+            {summary ? `Interview Scores (${summary.completedRounds} rounds)` : "Interview Scores"}
+          </div>
+          {summary ? (
+            [["Technical", summary.avgTech, "bg-indigo-500"],
+             ["Communication", summary.avgComm, "bg-violet-500"],
+             ["Problem Solving", summary.avgPS, "bg-fuchsia-500"],
+             ["Culture Fit", summary.avgCulture, "bg-emerald-500"]].filter(([,v]) => v).map(([label, val, color]) => (
+              <div key={label}>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-slate-600">{label}</span>
+                  <span className="font-bold text-slate-900 tabular-nums">{val.toFixed(1)}/10</span>
+                </div>
+                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${color}`} style={{ width: `${val * 10}%` }} />
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-xs text-slate-400 italic">No completed rounds yet.</p>
+          )}
+
+          {summary && (
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              <span className="text-xs text-slate-500">Confidence Score</span>
+              <div className="flex items-center gap-2">
+                <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full" style={{ width: `${summary.confidence}%` }} />
+                </div>
+                <span className="text-xs font-bold text-slate-900">{summary.confidence}%</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right — rounds status + risk flags */}
+        <div className="space-y-3">
+          <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Round Status</div>
+          {record.rounds.length === 0 ? (
+            <p className="text-xs text-slate-400 italic">No rounds scheduled.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {record.rounds.map((rnd, i) => {
+                const sBg = { Completed: "bg-emerald-50 border-emerald-200 text-emerald-700", Scheduled: "bg-indigo-50 border-indigo-200 text-indigo-700", Pending: "bg-slate-50 border-slate-200 text-slate-500" }[rnd.status] || "bg-slate-50 border-slate-200 text-slate-500";
+                return (
+                  <div key={i} className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-xs ${sBg}`}>
+                    <span className="font-medium truncate">{rnd.round.split("—")[0].trim()}</span>
+                    <span className="font-semibold shrink-0 ml-2">{rnd.status}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {riskFlags.length > 0 && (
+            <>
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider pt-1">Risk Flags</div>
+              {riskFlags.map((f, i) => (
+                <div key={i} className={`flex items-start gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border ${f.level === "warning" ? "bg-amber-50 border-amber-200 text-amber-800" : "bg-slate-50 border-slate-200 text-slate-600"}`}>
+                  <span className="shrink-0">{f.level === "warning" ? "⚠" : "ℹ"}</span>
+                  <span>{f.label}</span>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ============================================================
+   INTERVIEW HUB — top-level page (sidebar nav)
+   ============================================================ */
+const InterviewHub = ({ candidates, requisitions, onOpenCandidate, setView }) => {
+  const [activeReq, setActiveReq] = useState(requisitions[0]?.id);
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [kitCandidate, setKitCandidate]       = useState(null);
+  const [feedbackCandidate, setFeedbackCandidate] = useState(null);
+  const [feedbackRound, setFeedbackRound]     = useState(null);
+  const [showSummary, setShowSummary]          = useState(false);
+
+  const reqCandidates = candidates.filter(c => c.reqId === activeReq);
+
+  const openKit      = (cand) => { setKitCandidate(cand); setFeedbackCandidate(null); setShowSummary(false); };
+  const openFeedback = (cand, rnd = null) => { setFeedbackCandidate(cand); setFeedbackRound(rnd); setKitCandidate(null); setShowSummary(false); };
+  const openSummary  = (cand) => { setFeedbackCandidate(cand); setKitCandidate(null); setShowSummary(true); };
+  const closeAll     = () => { setKitCandidate(null); setFeedbackCandidate(null); setShowSummary(false); };
+
+  return (
+    <div className="p-8 space-y-6 max-w-6xl">
+      <div className="flex items-end justify-between">
+        <div>
+          <div className="text-xs font-semibold text-violet-600 uppercase tracking-widest mb-1 flex items-center gap-2">
+            <Activity className="w-3 h-3" />Interview Intelligence
+          </div>
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Interviews</h1>
+          <p className="text-sm text-slate-500 mt-1">AI-assisted planning, feedback capture, and hiring decisions.</p>
+        </div>
+        <div className="flex gap-2">
+          <select value={activeReq} onChange={e => setActiveReq(e.target.value)}
+            className="px-4 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500">
+            {requisitions.map(r => <option key={r.id} value={r.id}>{r.title}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit">
+        {[["dashboard", "Dashboard", ClipboardList], ["feedback", "Feedback Summary", BarChart2]].map(([key, label, Icon]) => (
+          <button key={key} onClick={() => { setActiveTab(key); closeAll(); }}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition ${activeTab === key && !kitCandidate && !feedbackCandidate ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+            <Icon className="w-3.5 h-3.5" />{label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content routing */}
+      {!kitCandidate && !feedbackCandidate && activeTab === "dashboard" && (
+        <InterviewDashboard
+          candidates={reqCandidates}
+          onOpenKit={openKit}
+          onOpenFeedback={openFeedback}
+          onOpenCandidate={id => setView({ name: "candidate", candidateId: typeof id === "string" ? id : id.id, from: "interviews" })}
+        />
+      )}
+
+      {!kitCandidate && !feedbackCandidate && activeTab === "feedback" && (
+        <div className="space-y-4">
+          {reqCandidates.filter(c => getInterviewRecord(c.id).rounds.some(r => r.feedback)).map(cand => (
+            <Card key={cand.id} className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white ${cand.match >= 90 ? "bg-emerald-500" : "bg-indigo-500"}`}>
+                    {cand.name.split(" ").map(n => n[0]).join("")}
+                  </div>
+                  <div><div className="font-semibold text-slate-900">{cand.name}</div><div className="text-xs text-slate-400">{cand.stage}</div></div>
+                </div>
+                <button onClick={() => openSummary(cand)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition">
+                  <BarChart2 className="w-3.5 h-3.5" />Full Summary
+                </button>
+              </div>
+              <AiFeedbackSummary candidate={cand} onBack={closeAll} onAddFeedback={() => openFeedback(cand)} />
+            </Card>
+          ))}
+          {reqCandidates.filter(c => getInterviewRecord(c.id).rounds.some(r => r.feedback)).length === 0 && (
+            <div className="text-center py-12 text-slate-400">
+              <BarChart2 className="w-10 h-10 mx-auto text-slate-200 mb-3" />
+              <div className="font-semibold text-slate-600 mb-1">No feedback submitted yet</div>
+              <div className="text-sm">Complete an interview round and add feedback to see AI summaries here.</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {kitCandidate && (
+        <InterviewKit candidate={kitCandidate} onBack={closeAll} onAddFeedback={() => { openFeedback(kitCandidate); }} />
+      )}
+
+      {feedbackCandidate && !showSummary && (
+        <FeedbackForm candidate={feedbackCandidate} round={feedbackRound} onSubmit={closeAll} onBack={() => { setShowSummary(true); }} />
+      )}
+
+      {feedbackCandidate && showSummary && (
+        <AiFeedbackSummary candidate={feedbackCandidate} onBack={closeAll} onAddFeedback={() => { setShowSummary(false); }} />
+      )}
+    </div>
+  );
 };
 
 /* ============================================================
@@ -745,6 +1704,7 @@ const Sidebar = ({ active, onNav, persona }) => {
     { key: "jd-generator",  label: "JD Generator",icon: Sparkles,      badge: "AI" },
     { key: "sourcing",      label: "Sourcing",    icon: Users },
     { key: "screening-hub", label: "Screening",   icon: MessageSquare, badge: "AI" },
+    { key: "interviews",    label: "Interviews",  icon: Activity,      badge: "AI" },
     { key: "admin",         label: "Admin",       icon: Settings },
   ];
   const allowed = PERSONAS[persona]?.navItems || ALL_ITEMS.map(i => i.key);
@@ -1906,7 +2866,7 @@ const CandidateTimeline = ({ candidate }) => {
 };
 
 /* ---------- CANDIDATE DETAIL ---------- */
-const CandidateDetail = ({ candidate, onBack, onScreen }) => {
+const CandidateDetail = ({ candidate, onBack, onScreen, onOpenKit, onOpenFeedback }) => {
   if (!candidate) return null;
   const recColors = { Proceed: "emerald", Hold: "amber", Reject: "rose" };
 
@@ -1942,6 +2902,15 @@ const CandidateDetail = ({ candidate, onBack, onScreen }) => {
       {/* ═══ CANDIDATE JOURNEY TIMELINE ═══ */}
       <Card className="p-6">
         <CandidateTimeline candidate={candidate} />
+      </Card>
+
+      {/* ═══ INTERVIEW INTELLIGENCE PANEL ═══ */}
+      <Card className="p-6">
+        <InterviewIntelligencePanel
+          candidate={candidate}
+          onOpenKit={onOpenKit || (() => {})}
+          onOpenFeedback={onOpenFeedback || (() => {})}
+        />
       </Card>
 
       {/* AI Summary + Skill Match */}
@@ -2366,23 +3335,27 @@ export default function HumAIne() {
 
   const nav = (name) => setView({ name });
 
-  // When persona changes, navigate to dashboard and reset view
   const handlePersonaChange = (newPersona) => {
     setPersona(newPersona);
     setView({ name: "dashboard" });
   };
 
+  // Interview navigation helpers — open kit or feedback from anywhere
+  const openInterviewKit = (cand) => setView({ name: "interview-kit", candidateId: cand.id, from: view.name, reqId: view.reqId });
+  const openInterviewFeedback = (cand) => setView({ name: "interview-feedback", candidateId: cand.id, from: view.name, reqId: view.reqId });
+
   const sidebarActive =
     view.name === "req-detail"   ? "requisitions" :
+    view.name === "candidate" && view.from === "interviews" ? "interviews" :
     view.name === "candidate" && view.from !== "screening-hub" ? "sourcing" :
     view.name === "candidate" && view.from === "screening-hub" ? "screening-hub" :
     view.name === "screening"    ? "screening-hub" :
+    view.name === "interview-kit" || view.name === "interview-feedback" ? "interviews" :
     view.name;
 
-  // Persona-specific dashboard
   const renderDashboard = () => {
     switch (persona) {
-      case "hiringManager":  return <HiringManagerDashboard  candidates={candidates} onOpenReq={(id) => setView({ name: "req-detail", reqId: id })} onNav={nav} />;
+      case "hiringManager":  return <HiringManagerDashboard  candidates={candidates} onOpenReq={(id) => setView({ name: "req-detail", reqId: id })} onNav={nav} onOpenKit={openInterviewKit} onOpenFeedback={openInterviewFeedback} />;
       case "deliveryManager":return <DeliveryManagerDashboard />;
       case "hrLeader":       return <HRLeaderDashboard />;
       case "admin":          return <AdminDashboard onNav={nav} />;
@@ -2404,8 +3377,21 @@ export default function HumAIne() {
             {view.name === "req-detail"   && currentReq && <RequisitionDetail req={currentReq} candidates={candidates} onBack={() => nav("requisitions")} onUpdateCandidate={updateCandidate} onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "req-detail", reqId: view.reqId })} />}
             {view.name === "jd-generator" && <JDGenerator onCreate={() => nav("requisitions")} />}
             {view.name === "sourcing"     && <Sourcing requisitions={requisitions} candidates={candidates} onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "sourcing" })} />}
+            {view.name === "interviews"   && <InterviewHub candidates={candidates} requisitions={requisitions} onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "interviews" })} setView={setView} />}
+            {view.name === "interview-kit" && currentCandidate && (
+              <div className="p-8 max-w-5xl">
+                <button onClick={() => view.from ? setView({ name: view.from, candidateId: view.candidateId, reqId: view.reqId }) : nav("interviews")} className="text-sm text-slate-500 hover:text-slate-900 inline-flex items-center gap-1 mb-6"><ChevronRight className="w-4 h-4 rotate-180" />Back</button>
+                <InterviewKit candidate={currentCandidate} onBack={() => setView({ name: "candidate", candidateId: view.candidateId, from: view.from, reqId: view.reqId })} onAddFeedback={() => openInterviewFeedback(currentCandidate)} />
+              </div>
+            )}
+            {view.name === "interview-feedback" && currentCandidate && (
+              <div className="p-8 max-w-3xl">
+                <button onClick={() => setView({ name: "candidate", candidateId: view.candidateId, from: view.from, reqId: view.reqId })} className="text-sm text-slate-500 hover:text-slate-900 inline-flex items-center gap-1 mb-6"><ChevronRight className="w-4 h-4 rotate-180" />Back</button>
+                <FeedbackForm candidate={currentCandidate} round={null} onSubmit={() => setView({ name: "candidate", candidateId: view.candidateId, from: view.from, reqId: view.reqId })} onBack={() => setView({ name: "candidate", candidateId: view.candidateId, from: view.from, reqId: view.reqId })} />
+              </div>
+            )}
             {view.name === "screening-hub"&& <ScreeningHub candidates={candidates} onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "screening-hub" })} onStartScreening={(id) => setView({ name: "screening", candidateId: id, from: "screening-hub" })} />}
-            {view.name === "candidate"    && currentCandidate && <CandidateDetail candidate={currentCandidate} onBack={() => { if (view.from === "req-detail") setView({ name: "req-detail", reqId: view.reqId }); else if (view.from === "screening-hub") nav("screening-hub"); else nav("sourcing"); }} onScreen={() => setView({ name: "screening", candidateId: view.candidateId, from: view.from, reqId: view.reqId })} />}
+            {view.name === "candidate"    && currentCandidate && <CandidateDetail candidate={currentCandidate} onBack={() => { if (view.from === "req-detail") setView({ name: "req-detail", reqId: view.reqId }); else if (view.from === "screening-hub") nav("screening-hub"); else if (view.from === "interviews") nav("interviews"); else nav("sourcing"); }} onScreen={() => setView({ name: "screening", candidateId: view.candidateId, from: view.from, reqId: view.reqId })} onOpenKit={openInterviewKit} onOpenFeedback={openInterviewFeedback} />}
             {view.name === "screening"    && currentCandidate && <Screening candidate={currentCandidate} onBack={() => { if (view.from === "screening-hub") nav("screening-hub"); else setView({ name: "candidate", candidateId: view.candidateId, from: view.from, reqId: view.reqId }); }} />}
             {view.name === "admin"        && <Admin />}
           </div>
