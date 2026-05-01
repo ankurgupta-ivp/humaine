@@ -312,64 +312,372 @@ const RequisitionsList = ({ requisitions, onOpen, onNav }) => (
   </div>
 );
 
-/* ---------- REQUISITION DETAIL (kanban + drag-drop pipeline) ---------- */
+/* ---------- AI INSIGHTS DATA ---------- */
+
+/* ============================================================
+   AI INSIGHTS DATA — per stage signals (Insight / Risk / Recommendation)
+   ============================================================ */
+const stageInsights = {
+  Sourced: [
+    { type: "insight", icon: "💡", label: "Volume strong", text: "47 profiles sourced in 12 days — 31% above average for this band. LinkedIn driving 48% of volume." },
+    { type: "recommendation", icon: "✅", label: "Activate referrals", text: "Referral candidates convert at 38% vs 11% on LinkedIn. Push an internal referral campaign — 5 good referrals could fill 1 opening." },
+  ],
+  Screened: [
+    { type: "risk", icon: "⚠️", label: "High drop-off", text: "40% of sourced candidates didn't proceed to screening. Likely cause: TypeScript listed as mandatory is filtering out strong React/JS generalists." },
+    { type: "insight", icon: "💡", label: "Speed gap", text: "High-match (>90%) candidates are screened 40% faster — 1.9 days vs 3.2 days avg. Prioritising by score accelerates your pipeline." },
+    { type: "recommendation", icon: "✅", label: "JD tweak", text: "Consider relaxing TypeScript to 'strong preferred'. 3 dropped candidates had React + Node but weak TS — they could ramp quickly." },
+  ],
+  Shortlisted: [
+    { type: "insight", icon: "💡", label: "Avg match 88%", text: "14 shortlisted with an average AI fit score of 88%. Top 3 (Nina, Priya, Sara) are above 93% — well above typical hire threshold." },
+    { type: "risk", icon: "⚠️", label: "Comp mismatch risk", text: "3 candidates have signalled comp expectations above the stated band. Priya Raman and Marcus Webb both have competing offers in market." },
+    { type: "recommendation", icon: "✅", label: "Prioritise this week", text: "Schedule Priya Raman and Marcus Webb for interviews immediately — market data shows candidates at this level accept within 10 days or move on." },
+  ],
+  Interviewed: [
+    { type: "risk", icon: "⚠️", label: "Loop too long", text: "Interview-to-offer conversion is 29% vs 40% benchmark. Exit feedback from 2 declined candidates cites loop length (avg 6 rounds) as primary friction." },
+    { type: "insight", icon: "💡", label: "Conversion trend", text: "Candidates who completed the system design round convert at 71% to Offered — it's your strongest signal step. Keep it, cut the others." },
+    { type: "recommendation", icon: "✅", label: "Compress to 4 rounds", text: "System design + coding screen + hiring manager + culture panel captures 95% of your predictive signal. Removing 2 rounds could recover ~3 lost candidates." },
+  ],
+  Offered: [
+    { type: "risk", icon: "⚠️", label: "Offer ageing", text: "Nina Patel's offer has been pending 3 days with no response. Industry data shows >3 days without response correlates with a competing offer — follow up today." },
+    { type: "insight", icon: "💡", label: "Acceptance rate", text: "84% offer acceptance rate for this role band historically. You're on track if compensation is within 5% of market. Check Levels.fyi for live benchmarks." },
+  ],
+  Hired: [
+    { type: "insight", icon: "💡", label: "Strong hire", text: "Sara Lindqvist hired via Referrals — 93% match, 21 days to hire (14 days below team avg). Source: Referrals 1 for 1 on this req." },
+    { type: "recommendation", icon: "✅", label: "2 openings remain", text: "Accelerate Nina Patel offer decision and re-engage Marcus Webb — both are ready. Closing both would fill all 3 openings within 2 weeks." },
+  ],
+};
+
+const aiHiringSummary = {
+  health: 72,
+  verdict: "On Track — with 2 risks to address",
+  updated: "3 min ago",
+  signals: [
+    { type: "risk",           icon: "⚠️", label: "Offer stalling",       detail: "Nina Patel (96% match) has been at Offered for 3+ days without response. Highest churn risk in the pipeline right now." },
+    { type: "risk",           icon: "⚠️", label: "Interview drop-off",   detail: "29% interview→offer conversion vs 40% benchmark. Candidates citing loop length. Compressing to 4 rounds could recover 2–3 candidates." },
+    { type: "insight",        icon: "💡", label: "Strong top of funnel", detail: "47 sourced in 12 days is 31% above average. Referral channel converting at 3.5× the rate of LinkedIn — outperforming expectations." },
+    { type: "recommendation", icon: "✅", label: "3 actions this week",  detail: "① Follow up Nina Patel offer today  ② Schedule Marcus Webb for round 2  ③ Compress interview loop to 4 rounds." },
+  ],
+};
+
+/* ---------- INSIGHT CARD (inside kanban columns) ---------- */
+const InsightCard = ({ insight, expanded, onToggle }) => {
+  const styles = {
+    insight:        { bg: "bg-indigo-50",  border: "border-indigo-200",  text: "text-indigo-800",  label: "text-indigo-500",  bar: "bg-indigo-400" },
+    risk:           { bg: "bg-rose-50",    border: "border-rose-200",    text: "text-rose-800",    label: "text-rose-500",    bar: "bg-rose-400"   },
+    recommendation: { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-800", label: "text-emerald-500", bar: "bg-emerald-400" },
+  };
+  const s = styles[insight.type];
+  return (
+    <div className={`rounded-xl border ${s.border} ${s.bg} overflow-hidden transition-all`}>
+      <button onClick={onToggle} className="w-full flex items-start gap-2 p-2.5 text-left">
+        <span className="text-sm leading-none mt-0.5 shrink-0">{insight.icon}</span>
+        <div className="flex-1 min-w-0">
+          <div className={`text-[9px] font-bold uppercase tracking-widest ${s.label}`}>{insight.type}</div>
+          <div className={`text-[11px] font-semibold leading-tight mt-0.5 ${s.text}`}>{insight.label}</div>
+        </div>
+        <span className={`text-[10px] font-bold shrink-0 mt-1 ${s.label} transition-transform ${expanded ? "rotate-180" : ""}`}>▾</span>
+      </button>
+      {expanded && (
+        <div className={`px-2.5 pb-2.5 text-[11px] ${s.text} leading-relaxed border-t ${s.border} pt-2`}>
+          {insight.text}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ---------- AI HIRING SUMMARY PANEL ---------- */
+const AiHiringSummary = ({ req, showInsights, onToggle }) => {
+  const healthColor = aiHiringSummary.health >= 80 ? "text-emerald-400" : aiHiringSummary.health >= 60 ? "text-amber-400" : "text-rose-400";
+  const r = 22; const circumference = 2 * Math.PI * r;
+  const dashOffset = circumference - (aiHiringSummary.health / 100) * circumference;
+  const signalCounts = {
+    risk:           aiHiringSummary.signals.filter(s => s.type === "risk").length,
+    insight:        aiHiringSummary.signals.filter(s => s.type === "insight").length,
+    recommendation: aiHiringSummary.signals.filter(s => s.type === "recommendation").length,
+  };
+
+  return (
+    <div className="rounded-2xl border border-slate-200/80 shadow-md overflow-hidden">
+
+      {/* ── Dark header bar ── */}
+      <div className="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 px-6 py-5">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+
+          {/* Left — title */}
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30 shrink-0">
+              <Sparkles className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">AI Hiring Intelligence</div>
+              <div className="text-white font-bold text-sm leading-tight mt-0.5">Hiring Summary — {req.title}</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">Updated {aiHiringSummary.updated} · {req.project}</div>
+            </div>
+          </div>
+
+          {/* Centre — health ring */}
+          <div className="flex items-center gap-3">
+            <div className="relative w-14 h-14 shrink-0">
+              <svg width="56" height="56" className="-rotate-90">
+                <circle cx="28" cy="28" r={r} stroke="rgba(255,255,255,0.08)" strokeWidth="5" fill="none" />
+                <circle cx="28" cy="28" r={r} stroke="url(#hg)" strokeWidth="5" fill="none"
+                  strokeDasharray={circumference} strokeDashoffset={dashOffset} strokeLinecap="round" />
+                <defs>
+                  <linearGradient id="hg" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#6366f1" />
+                    <stop offset="100%" stopColor="#d946ef" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-sm font-bold text-white">{aiHiringSummary.health}</span>
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Pipeline Health</div>
+              <div className={`text-xs font-bold mt-0.5 ${healthColor}`}>{aiHiringSummary.verdict}</div>
+            </div>
+          </div>
+
+          {/* Right — signal counts + toggle */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1 bg-white/5 rounded-xl px-3 py-2 border border-white/10">
+              <div className="text-center px-2">
+                <div className="text-lg font-bold text-rose-400 tabular-nums">{signalCounts.risk}</div>
+                <div className="text-[9px] text-slate-500 uppercase tracking-wider">Risks</div>
+              </div>
+              <div className="w-px h-8 bg-white/10" />
+              <div className="text-center px-2">
+                <div className="text-lg font-bold text-indigo-400 tabular-nums">{signalCounts.insight}</div>
+                <div className="text-[9px] text-slate-500 uppercase tracking-wider">Insights</div>
+              </div>
+              <div className="w-px h-8 bg-white/10" />
+              <div className="text-center px-2">
+                <div className="text-lg font-bold text-emerald-400 tabular-nums">{signalCounts.recommendation}</div>
+                <div className="text-[9px] text-slate-500 uppercase tracking-wider">Actions</div>
+              </div>
+            </div>
+            <button onClick={onToggle} className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border ${showInsights ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/30" : "bg-white/10 border-white/20 text-white/60 hover:bg-white/20"}`}>
+              {showInsights ? "Hide Overlay" : "Show Overlay"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Signal cards row ── */}
+      <div className="grid grid-cols-4 divide-x divide-slate-100 bg-white">
+        {aiHiringSummary.signals.map((signal, i) => {
+          const col = {
+            risk:           { bar: "bg-rose-500",    label: "text-rose-500",    icon: "bg-rose-100 text-rose-700",    left: "border-l-rose-400"    },
+            insight:        { bar: "bg-indigo-500",  label: "text-indigo-500",  icon: "bg-indigo-100 text-indigo-700",  left: "border-l-indigo-400"  },
+            recommendation: { bar: "bg-emerald-500", label: "text-emerald-500", icon: "bg-emerald-100 text-emerald-700", left: "border-l-emerald-400" },
+          }[signal.type];
+          return (
+            <div key={i} className={`p-4 border-l-4 ${col.left} hover:bg-slate-50 transition`}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-sm ${col.icon}`}>{signal.icon}</span>
+                <div>
+                  <div className={`text-[9px] font-bold uppercase tracking-widest ${col.label}`}>{signal.type}</div>
+                  <div className="text-sm font-bold text-slate-900 leading-tight">{signal.label}</div>
+                </div>
+              </div>
+              <div className="text-xs text-slate-600 leading-relaxed">{signal.detail}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+/* ---------- REQUISITION DETAIL (kanban + drag-drop + AI Insights Overlay) ---------- */
 const RequisitionDetail = ({ req, candidates, onBack, onUpdateCandidate, onOpenCandidate }) => {
   const reqCandidates = candidates.filter(c => c.reqId === req.id);
   const [draggedId, setDraggedId] = useState(null);
   const [draggedOver, setDraggedOver] = useState(null);
+  const [showInsights, setShowInsights] = useState(true);
+  const [expandedInsights, setExpandedInsights] = useState({});
+
+  const toggleInsight = (stage, idx) => {
+    const key = `${stage}-${idx}`;
+    setExpandedInsights(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const stageColors = {
-    Sourced: { bg: "bg-indigo-50", border: "border-indigo-200", text: "text-indigo-700", dot: "bg-indigo-500" },
-    Screened: { bg: "bg-violet-50", border: "border-violet-200", text: "text-violet-700", dot: "bg-violet-500" },
+    Sourced:     { bg: "bg-indigo-50",  border: "border-indigo-200",  text: "text-indigo-700",  dot: "bg-indigo-500"  },
+    Screened:    { bg: "bg-violet-50",  border: "border-violet-200",  text: "text-violet-700",  dot: "bg-violet-500"  },
     Shortlisted: { bg: "bg-fuchsia-50", border: "border-fuchsia-200", text: "text-fuchsia-700", dot: "bg-fuchsia-500" },
-    Interviewed: { bg: "bg-pink-50", border: "border-pink-200", text: "text-pink-700", dot: "bg-pink-500" },
-    Offered: { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", dot: "bg-amber-500" },
-    Hired: { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", dot: "bg-emerald-500" },
+    Interviewed: { bg: "bg-pink-50",    border: "border-pink-200",    text: "text-pink-700",    dot: "bg-pink-500"    },
+    Offered:     { bg: "bg-amber-50",   border: "border-amber-200",   text: "text-amber-700",   dot: "bg-amber-500"   },
+    Hired:       { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", dot: "bg-emerald-500" },
+  };
+
+  const conversionRates = stageOrder.map((stage, i) => {
+    if (i === 0) return 100;
+    const prevCount = reqCandidates.filter(c => c.stage === stageOrder[i - 1]).length;
+    const currCount = reqCandidates.filter(c => c.stage === stage).length;
+    const total = prevCount + currCount;
+    return total === 0 ? 0 : Math.round((currCount / total) * 100);
+  });
+
+  const stagePrimarySignal = (stage) => {
+    const insights = stageInsights[stage] || [];
+    return insights.find(i => i.type === "risk") || insights.find(i => i.type === "recommendation") || insights[0] || null;
   };
 
   return (
     <div className="p-8 space-y-6">
-      <button onClick={onBack} className="text-sm text-slate-500 hover:text-slate-900 inline-flex items-center gap-1"><ChevronRight className="w-4 h-4 rotate-180" />Back to requisitions</button>
+      <button onClick={onBack} className="text-sm text-slate-500 hover:text-slate-900 inline-flex items-center gap-1">
+        <ChevronRight className="w-4 h-4 rotate-180" />Back to requisitions
+      </button>
 
+      {/* Title row */}
       <div className="flex items-start justify-between">
         <div>
-          <div className="flex items-center gap-2 mb-2"><Pill tone={req.status === "Active" ? "emerald" : "default"}>{req.status}</Pill><Pill tone={req.priority === "Critical" ? "rose" : req.priority === "High" ? "amber" : "default"}>{req.priority}</Pill><span className="text-xs text-slate-400">REQ-{req.id.toUpperCase()}</span></div>
+          <div className="flex items-center gap-2 mb-2">
+            <Pill tone={req.status === "Active" ? "emerald" : "default"}>{req.status}</Pill>
+            <Pill tone={req.priority === "Critical" ? "rose" : req.priority === "High" ? "amber" : "default"}>{req.priority}</Pill>
+            <span className="text-xs text-slate-400">REQ-{req.id.toUpperCase()}</span>
+          </div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{req.title}</h1>
-          <div className="text-sm text-slate-500 mt-1 flex items-center gap-3"><span>{req.project}</span><span>·</span><span>{req.expRange}</span><span>·</span><span>{req.budget}</span><span>·</span><span>{req.daysOpen} days open</span></div>
+          <div className="text-sm text-slate-500 mt-1 flex items-center gap-3">
+            <span>{req.project}</span><span>·</span><span>{req.expRange}</span><span>·</span><span>{req.budget}</span><span>·</span><span>{req.daysOpen} days open</span>
+          </div>
         </div>
-        <div className="flex gap-2"><GradientButton variant="secondary" icon={Edit3}>Edit JD</GradientButton><GradientButton icon={Users}>Source More</GradientButton></div>
+        <div className="flex gap-2">
+          <GradientButton variant="secondary" icon={Edit3}>Edit JD</GradientButton>
+          <GradientButton icon={Users}>Source More</GradientButton>
+        </div>
       </div>
 
+      {/* ═══ AI HIRING SUMMARY PANEL ═══ */}
+      <AiHiringSummary req={req} showInsights={showInsights} onToggle={() => setShowInsights(v => !v)} />
+
+      {/* Stage metric cards */}
       <div className="grid grid-cols-6 gap-3">
-        {stageOrder.map((stage) => {
+        {stageOrder.map((stage, i) => {
           const count = reqCandidates.filter(c => c.stage === stage).length;
-          const c = stageColors[stage];
+          const col = stageColors[stage];
+          const signal = stagePrimarySignal(stage);
+          const isRisk = signal?.type === "risk";
           return (
-            <Card key={stage} className="p-4">
-              <div className="flex items-center gap-2 mb-1"><span className={`w-2 h-2 rounded-full ${c.dot}`} /><span className="text-xs font-medium text-slate-600">{stage}</span></div>
+            <Card key={stage} className={`p-4 relative overflow-hidden transition-all ${showInsights && isRisk ? "border-rose-300 shadow-rose-100 shadow-md" : ""}`}>
+              {showInsights && isRisk && (
+                <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+              )}
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`w-2 h-2 rounded-full shrink-0 ${col.dot}`} />
+                <span className="text-xs font-medium text-slate-600 truncate">{stage}</span>
+              </div>
               <div className="text-2xl font-bold text-slate-900 tabular-nums">{count}</div>
+              {showInsights && signal && (
+                <div className="mt-2 pt-2 border-t border-slate-100">
+                  <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-500">
+                    <span>{signal.icon}</span>
+                    <span className="truncate">{signal.label}</span>
+                  </div>
+                </div>
+              )}
             </Card>
           );
         })}
       </div>
 
+      {/* ═══ PIPELINE KANBAN WITH AI OVERLAY ═══ */}
       <Card className="p-6">
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-2"><Layers className="w-4 h-4 text-slate-400" /><h2 className="text-lg font-bold text-slate-900">Pipeline</h2></div>
-          <div className="text-xs text-slate-500">Drag candidates across stages</div>
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4 text-slate-400" />
+            <h2 className="text-lg font-bold text-slate-900">Pipeline</h2>
+            {showInsights && <Pill tone="violet"><Sparkles className="w-3 h-3" />AI Overlay</Pill>}
+          </div>
+          <div className="flex items-center gap-4 text-[11px] text-slate-500">
+            {showInsights && (
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1"><span>💡</span>Insight</span>
+                <span className="flex items-center gap-1"><span>⚠️</span>Risk</span>
+                <span className="flex items-center gap-1"><span>✅</span>Action</span>
+                <span className="text-slate-300">·</span>
+              </div>
+            )}
+            <span>Drag candidates to move stages</span>
+          </div>
         </div>
-        <div className="grid grid-cols-6 gap-3 mt-4">
-          {stageOrder.map((stage) => {
-            const c = stageColors[stage];
+
+        <div className="grid grid-cols-6 gap-3">
+          {stageOrder.map((stage, stageIdx) => {
+            const col = stageColors[stage];
             const stageCandidates = reqCandidates.filter(x => x.stage === stage);
+            const insights = stageInsights[stage] || [];
+            const hasRisk = insights.some(i => i.type === "risk");
+            const convRate = conversionRates[stageIdx];
+
             return (
-              <div key={stage} onDragOver={(e) => { e.preventDefault(); setDraggedOver(stage); }} onDragLeave={() => setDraggedOver(null)} onDrop={() => { if (draggedId) onUpdateCandidate(draggedId, { stage }); setDraggedId(null); setDraggedOver(null); }} className={`min-h-[400px] rounded-xl border-2 border-dashed transition-all p-2 ${draggedOver === stage ? "border-indigo-400 bg-indigo-50/50" : `${c.border} ${c.bg}/40`}`}>
-                <div className="flex items-center justify-between px-2 py-1.5 mb-2"><span className={`text-xs font-bold ${c.text} uppercase tracking-wider`}>{stage}</span><span className={`text-xs font-bold ${c.text} bg-white px-1.5 rounded`}>{stageCandidates.length}</span></div>
+              <div
+                key={stage}
+                onDragOver={(e) => { e.preventDefault(); setDraggedOver(stage); }}
+                onDragLeave={() => setDraggedOver(null)}
+                onDrop={() => { if (draggedId) onUpdateCandidate(draggedId, { stage }); setDraggedId(null); setDraggedOver(null); }}
+                className={`rounded-xl border-2 border-dashed transition-all p-2 ${
+                  draggedOver === stage
+                    ? "border-indigo-400 bg-indigo-50/50"
+                    : showInsights && hasRisk
+                    ? "border-rose-300 bg-rose-50/20"
+                    : `${col.border} ${col.bg}/40`
+                }`}
+              >
+                {/* Column header */}
+                <div className="px-2 py-1.5 mb-2">
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs font-bold ${col.text} uppercase tracking-wider`}>{stage}</span>
+                    <span className={`text-xs font-bold ${col.text} bg-white px-1.5 rounded`}>{stageCandidates.length}</span>
+                  </div>
+                  {/* Conversion rate mini bar */}
+                  {stageIdx > 0 && (
+                    <div className="mt-1.5">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-[9px] text-slate-400">from prev</span>
+                        <span className={`text-[9px] font-bold ${convRate < 40 ? "text-rose-500" : convRate < 70 ? "text-amber-500" : "text-emerald-600"}`}>{convRate}%</span>
+                      </div>
+                      <div className="h-1 bg-white/60 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${convRate < 40 ? "bg-rose-400" : convRate < 70 ? "bg-amber-400" : "bg-emerald-400"}`}
+                          style={{ width: `${convRate}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* ═══ AI INSIGHT CARDS per stage ═══ */}
+                {showInsights && insights.length > 0 && (
+                  <div className="space-y-1.5 mb-2 px-0.5">
+                    {insights.map((insight, ii) => (
+                      <InsightCard
+                        key={ii}
+                        insight={insight}
+                        expanded={!!expandedInsights[`${stage}-${ii}`]}
+                        onToggle={() => toggleInsight(stage, ii)}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Candidate cards */}
                 <div className="space-y-2">
                   {stageCandidates.map((cand) => (
-                    <div key={cand.id} draggable onDragStart={() => setDraggedId(cand.id)} onClick={() => onOpenCandidate(cand.id)} className="bg-white rounded-lg border border-slate-200 p-3 cursor-pointer hover:shadow-md hover:border-indigo-300 transition group">
+                    <div
+                      key={cand.id}
+                      draggable
+                      onDragStart={() => setDraggedId(cand.id)}
+                      onClick={() => onOpenCandidate(cand.id)}
+                      className="bg-white rounded-lg border border-slate-200 p-3 cursor-pointer hover:shadow-md hover:border-indigo-300 transition group"
+                    >
                       <div className="flex items-start gap-2">
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 bg-gradient-to-br ${cand.match >= 90 ? "from-emerald-500 to-teal-500" : cand.match >= 80 ? "from-indigo-500 to-violet-500" : "from-amber-500 to-orange-500"}`}>{cand.name.split(" ").map(n => n[0]).join("")}</div>
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 bg-gradient-to-br ${cand.match >= 90 ? "from-emerald-500 to-teal-500" : cand.match >= 80 ? "from-indigo-500 to-violet-500" : "from-amber-500 to-orange-500"}`}>
+                          {cand.name.split(" ").map(n => n[0]).join("")}
+                        </div>
                         <div className="flex-1 min-w-0">
                           <div className="text-xs font-semibold text-slate-900 truncate">{cand.name}</div>
                           <div className="text-[10px] text-slate-500 mt-0.5 truncate">{cand.exp} yrs · {cand.source}</div>
@@ -377,12 +685,17 @@ const RequisitionDetail = ({ req, candidates, onBack, onUpdateCandidate, onOpenC
                         <GripVertical className="w-3 h-3 text-slate-300 group-hover:text-slate-400 shrink-0" />
                       </div>
                       <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                        <div className="flex items-center gap-1"><Star className="w-3 h-3 text-amber-500 fill-amber-500" /><span className="text-[10px] font-bold text-slate-700">{cand.match}%</span></div>
+                        <div className="flex items-center gap-1">
+                          <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
+                          <span className="text-[10px] font-bold text-slate-700">{cand.match}%</span>
+                        </div>
                         <div className="text-[9px] text-slate-400 truncate ml-1">{cand.location}</div>
                       </div>
                     </div>
                   ))}
-                  {stageCandidates.length === 0 && <div className="text-[10px] text-slate-400 text-center py-6 italic">drop here</div>}
+                  {stageCandidates.length === 0 && (
+                    <div className="text-[10px] text-slate-400 text-center py-4 italic">drop here</div>
+                  )}
                 </div>
               </div>
             );
@@ -390,6 +703,7 @@ const RequisitionDetail = ({ req, candidates, onBack, onUpdateCandidate, onOpenC
         </div>
       </Card>
 
+      {/* JD + Source Mix */}
       <div className="grid grid-cols-3 gap-6">
         <Card className="col-span-2 p-6">
           <h2 className="text-lg font-bold text-slate-900 mb-4">Job Description</h2>
@@ -417,7 +731,6 @@ const RequisitionDetail = ({ req, candidates, onBack, onUpdateCandidate, onOpenC
     </div>
   );
 };
-/* ---------- JD GENERATOR ---------- */
 const JDGenerator = ({ onCreate }) => {
   const [title, setTitle] = useState("");
   const [skills, setSkills] = useState([]);
