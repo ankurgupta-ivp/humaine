@@ -319,7 +319,7 @@ const RecruiterDashboard = ({ requisitions, candidates, onOpenReq, onNav }) => {
     <div className="p-8 space-y-6">
       <div className="flex items-end justify-between">
         <div>
-          <div className="text-xs font-semibold text-indigo-600 uppercase tracking-widest mb-1">Welcome back, Neha · Recruiter View</div>
+          <div className="text-xs font-semibold text-indigo-600 uppercase tracking-widest mb-1">Welcome back, Riya · Recruiter View</div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Here's what's moving today.</h1>
         </div>
         <GradientButton icon={Plus} onClick={() => onNav("jd-generator")}>New Requisition</GradientButton>
@@ -840,7 +840,7 @@ const Dashboard = ({ requisitions, onOpenReq, onNav }) => {
     <div className="p-8 space-y-6">
       <div className="flex items-end justify-between">
         <div>
-          <div className="text-xs font-semibold text-indigo-600 uppercase tracking-widest mb-1">Welcome back, Neha</div>
+          <div className="text-xs font-semibold text-indigo-600 uppercase tracking-widest mb-1">Welcome back, Riya</div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Here's what's moving today.</h1>
         </div>
         <GradientButton icon={Plus} onClick={() => onNav("jd-generator")}>New Requisition</GradientButton>
@@ -1145,218 +1145,303 @@ const AiHiringSummary = ({ req, showInsights, onToggle }) => {
 };
 
 /* ---------- REQUISITION DETAIL (kanban + drag-drop + AI Insights Overlay) ---------- */
+
+/* ---------- REQUISITION DETAIL — redesigned pipeline view ---------- */
 const RequisitionDetail = ({ req, candidates, onBack, onUpdateCandidate, onOpenCandidate }) => {
   const reqCandidates = candidates.filter(c => c.reqId === req.id);
-  const [draggedId, setDraggedId] = useState(null);
-  const [draggedOver, setDraggedOver] = useState(null);
-  const [showInsights, setShowInsights] = useState(true);
+
+  // Which stage cards are open (candidates visible)
+  const [openStages, setOpenStages] = useState(["Interviewed", "Offered"]); // sensible defaults
+  const [showAiInsights, setShowAiInsights] = useState(true);
   const [expandedInsights, setExpandedInsights] = useState({});
+  const [draggedId, setDraggedId] = useState(null);
+  const [dragOver, setDragOver] = useState(null);
 
-  const toggleInsight = (stage, idx) => {
-    const key = `${stage}-${idx}`;
+  const toggleStage = (stage) => {
+    setOpenStages(prev =>
+      prev.includes(stage) ? prev.filter(s => s !== stage) : [...prev, stage]
+    );
+  };
+
+  const expandAll = () => setOpenStages([...stageOrder]);
+  const collapseAll = () => setOpenStages([]);
+
+  const toggleInsight = (key) =>
     setExpandedInsights(prev => ({ ...prev, [key]: !prev[key] }));
+
+  // Conversion rate for a given stage index
+  const convRate = (idx) => {
+    if (idx === 0) return null;
+    const prev = reqCandidates.filter(c => c.stage === stageOrder[idx - 1]).length;
+    const curr = reqCandidates.filter(c => c.stage === stageOrder[idx]).length;
+    const total = prev + curr;
+    return total === 0 ? 0 : Math.round((curr / total) * 100);
   };
 
-  const stageColors = {
-    Sourced:     { bg: "bg-indigo-50",  border: "border-indigo-200",  text: "text-indigo-700",  dot: "bg-indigo-500"  },
-    Screened:    { bg: "bg-violet-50",  border: "border-violet-200",  text: "text-violet-700",  dot: "bg-violet-500"  },
-    Shortlisted: { bg: "bg-fuchsia-50", border: "border-fuchsia-200", text: "text-fuchsia-700", dot: "bg-fuchsia-500" },
-    Interviewed: { bg: "bg-pink-50",    border: "border-pink-200",    text: "text-pink-700",    dot: "bg-pink-500"    },
-    Offered:     { bg: "bg-amber-50",   border: "border-amber-200",   text: "text-amber-700",   dot: "bg-amber-500"   },
-    Hired:       { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", dot: "bg-emerald-500" },
+  // Stage styling — intentionally muted: just a left-accent, no full colour fills
+  const stageAccent = {
+    Sourced:     { accent: "border-l-slate-400",   dot: "bg-slate-400",   badge: "bg-slate-100 text-slate-700" },
+    Screened:    { accent: "border-l-slate-500",   dot: "bg-slate-500",   badge: "bg-slate-100 text-slate-700" },
+    Shortlisted: { accent: "border-l-indigo-400",  dot: "bg-indigo-400",  badge: "bg-indigo-50 text-indigo-700" },
+    Interviewed: { accent: "border-l-violet-500",  dot: "bg-violet-500",  badge: "bg-violet-50 text-violet-700" },
+    Offered:     { accent: "border-l-amber-500",   dot: "bg-amber-500",   badge: "bg-amber-50 text-amber-700" },
+    Hired:       { accent: "border-l-emerald-500", dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700" },
   };
 
-  const conversionRates = stageOrder.map((stage, i) => {
-    if (i === 0) return 100;
-    const prevCount = reqCandidates.filter(c => c.stage === stageOrder[i - 1]).length;
-    const currCount = reqCandidates.filter(c => c.stage === stage).length;
-    const total = prevCount + currCount;
-    return total === 0 ? 0 : Math.round((currCount / total) * 100);
-  });
-
-  const stagePrimarySignal = (stage) => {
-    const insights = stageInsights[stage] || [];
-    return insights.find(i => i.type === "risk") || insights.find(i => i.type === "recommendation") || insights[0] || null;
+  // AI signal type styling — clean, text-based
+  const signalStyle = {
+    insight:        { icon: "💡", label: "Insight",     text: "text-slate-700",  bg: "bg-slate-50",   border: "border-slate-200" },
+    risk:           { icon: "⚠️", label: "Risk",        text: "text-rose-700",   bg: "bg-rose-50",    border: "border-rose-200"  },
+    recommendation: { icon: "✅", label: "Recommended", text: "text-emerald-800",bg: "bg-emerald-50", border: "border-emerald-200"},
   };
+
+  const totalCandidates = reqCandidates.length;
+  const sourced = req.sourced;
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-8 max-w-5xl space-y-8">
+
+      {/* ── Back ── */}
       <button onClick={onBack} className="text-sm text-slate-500 hover:text-slate-900 inline-flex items-center gap-1">
         <ChevronRight className="w-4 h-4 rotate-180" />Back to requisitions
       </button>
 
-      {/* Title row */}
-      <div className="flex items-start justify-between">
+      {/* ── Header ── */}
+      <div className="flex items-start justify-between gap-6">
         <div>
           <div className="flex items-center gap-2 mb-2">
             <Pill tone={req.status === "Active" ? "emerald" : "default"}>{req.status}</Pill>
             <Pill tone={req.priority === "Critical" ? "rose" : req.priority === "High" ? "amber" : "default"}>{req.priority}</Pill>
             <span className="text-xs text-slate-400">REQ-{req.id.toUpperCase()}</span>
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{req.title}</h1>
-          <div className="text-sm text-slate-500 mt-1 flex items-center gap-3">
-            <span>{req.project}</span><span>·</span><span>{req.expRange}</span><span>·</span><span>{req.budget}</span><span>·</span><span>{req.daysOpen} days open</span>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{req.title}</h1>
+          <div className="text-sm text-slate-500 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span>{req.project}</span><span className="text-slate-300">·</span>
+            <span>{req.expRange}</span><span className="text-slate-300">·</span>
+            <span>{req.budget}</span><span className="text-slate-300">·</span>
+            <span>{req.daysOpen} days open</span>
+          </div>
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {req.skills.map(s => (
+              <span key={s} className="px-2 py-0.5 text-xs font-medium rounded-md bg-slate-100 text-slate-700 border border-slate-200">{s}</span>
+            ))}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           <GradientButton variant="secondary" icon={Edit3}>Edit JD</GradientButton>
           <GradientButton icon={Users}>Source More</GradientButton>
         </div>
       </div>
 
-      {/* ═══ AI HIRING SUMMARY PANEL ═══ */}
-      <AiHiringSummary req={req} showInsights={showInsights} onToggle={() => setShowInsights(v => !v)} />
+      {/* ── AI Hiring Summary (compact) ── */}
+      <AiHiringSummary req={req} showInsights={showAiInsights} onToggle={() => setShowAiInsights(v => !v)} />
 
-      {/* Stage metric cards */}
-      <div className="grid grid-cols-6 gap-3">
-        {stageOrder.map((stage, i) => {
-          const count = reqCandidates.filter(c => c.stage === stage).length;
-          const col = stageColors[stage];
-          const signal = stagePrimarySignal(stage);
-          const isRisk = signal?.type === "risk";
-          return (
-            <Card key={stage} className={`p-4 relative overflow-hidden transition-all ${showInsights && isRisk ? "border-rose-300 shadow-rose-100 shadow-md" : ""}`}>
-              {showInsights && isRisk && (
-                <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-              )}
-              <div className="flex items-center gap-2 mb-1">
-                <span className={`w-2 h-2 rounded-full shrink-0 ${col.dot}`} />
-                <span className="text-xs font-medium text-slate-600 truncate">{stage}</span>
-              </div>
-              <div className="text-2xl font-bold text-slate-900 tabular-nums">{count}</div>
-              {showInsights && signal && (
-                <div className="mt-2 pt-2 border-t border-slate-100">
-                  <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-500">
-                    <span>{signal.icon}</span>
-                    <span className="truncate">{signal.label}</span>
-                  </div>
-                </div>
-              )}
-            </Card>
-          );
-        })}
-      </div>
-
-      {/* ═══ PIPELINE KANBAN WITH AI OVERLAY ═══ */}
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <div className="flex items-center gap-2">
-            <Layers className="w-4 h-4 text-slate-400" />
+      {/* ════════════════════════════════════════════
+          SECTION 1 — PIPELINE (stage cards + candidates)
+          ════════════════════════════════════════════ */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <div>
             <h2 className="text-lg font-bold text-slate-900">Pipeline</h2>
-            {showInsights && <Pill tone="violet"><Sparkles className="w-3 h-3" />AI Overlay</Pill>}
+            <p className="text-xs text-slate-500 mt-0.5">{totalCandidates} candidates · click a stage to see names · drag to move</p>
           </div>
-          <div className="flex items-center gap-4 text-[11px] text-slate-500">
-            {showInsights && (
-              <div className="flex items-center gap-3">
-                <span className="flex items-center gap-1"><span>💡</span>Insight</span>
-                <span className="flex items-center gap-1"><span>⚠️</span>Risk</span>
-                <span className="flex items-center gap-1"><span>✅</span>Action</span>
-                <span className="text-slate-300">·</span>
-              </div>
-            )}
-            <span>Drag candidates to move stages</span>
+          <div className="flex items-center gap-2">
+            <button onClick={expandAll} className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 px-3 py-1.5 rounded-lg border border-indigo-200 hover:bg-indigo-50 transition">Expand all</button>
+            <button onClick={collapseAll} className="text-xs font-semibold text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition">Collapse all</button>
           </div>
         </div>
 
-        <div className="grid grid-cols-6 gap-3">
+        {/* Funnel progress bar */}
+        <div className="flex items-center gap-1 mb-5 bg-slate-100 rounded-full h-2 overflow-hidden">
+          {stageOrder.map((stage, i) => {
+            const cnt = reqCandidates.filter(c => c.stage === stage).length;
+            const pct = (cnt / Math.max(1, sourced)) * 100;
+            const colors = ["bg-slate-400","bg-slate-500","bg-indigo-400","bg-violet-500","bg-amber-500","bg-emerald-500"];
+            return pct > 0 ? (
+              <div key={stage} className={`h-full ${colors[i]} transition-all`} style={{ width: `${pct}%` }} title={`${stage}: ${cnt}`} />
+            ) : null;
+          })}
+        </div>
+
+        {/* Vertical stage list */}
+        <div className="space-y-2">
           {stageOrder.map((stage, stageIdx) => {
-            const col = stageColors[stage];
-            const stageCandidates = reqCandidates.filter(x => x.stage === stage);
-            const insights = stageInsights[stage] || [];
-            const hasRisk = insights.some(i => i.type === "risk");
-            const convRate = conversionRates[stageIdx];
+            const stageCandidates = reqCandidates.filter(c => c.stage === stage);
+            const count = stageCandidates.length;
+            const isOpen = openStages.includes(stage);
+            const acc = stageAccent[stage];
+            const rate = convRate(stageIdx);
+            const hasRisk = (stageInsights[stage] || []).some(i => i.type === "risk");
 
             return (
               <div
                 key={stage}
-                onDragOver={(e) => { e.preventDefault(); setDraggedOver(stage); }}
-                onDragLeave={() => setDraggedOver(null)}
-                onDrop={() => { if (draggedId) onUpdateCandidate(draggedId, { stage }); setDraggedId(null); setDraggedOver(null); }}
-                className={`rounded-xl border-2 border-dashed transition-all p-2 ${
-                  draggedOver === stage
-                    ? "border-indigo-400 bg-indigo-50/50"
-                    : showInsights && hasRisk
-                    ? "border-rose-300 bg-rose-50/20"
-                    : `${col.border} ${col.bg}/40`
-                }`}
+                onDragOver={e => { e.preventDefault(); setDragOver(stage); }}
+                onDragLeave={() => setDragOver(null)}
+                onDrop={() => { if (draggedId) onUpdateCandidate(draggedId, { stage }); setDraggedId(null); setDragOver(null); }}
+                className={`rounded-xl border-l-4 border border-slate-200 bg-white transition-all ${acc.accent} ${dragOver === stage ? "ring-2 ring-indigo-300 shadow-md" : ""} ${hasRisk && showAiInsights ? "border-t-rose-300 border-r-rose-100 border-b-rose-100" : ""}`}
               >
-                {/* Column header */}
-                <div className="px-2 py-1.5 mb-2">
-                  <div className="flex items-center justify-between">
-                    <span className={`text-xs font-bold ${col.text} uppercase tracking-wider`}>{stage}</span>
-                    <span className={`text-xs font-bold ${col.text} bg-white px-1.5 rounded`}>{stageCandidates.length}</span>
+                {/* Stage header — always visible, clickable */}
+                <button
+                  onClick={() => toggleStage(stage)}
+                  className="w-full flex items-center gap-4 px-5 py-4 text-left hover:bg-slate-50/50 transition rounded-xl"
+                >
+                  {/* Dot + name */}
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${acc.dot}`} />
+                    <span className="font-semibold text-slate-900 text-sm">{stage}</span>
+                    {hasRisk && showAiInsights && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" title="Risk flagged" />
+                    )}
                   </div>
-                  {/* Conversion rate mini bar */}
-                  {stageIdx > 0 && (
-                    <div className="mt-1.5">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-[9px] text-slate-400">from prev</span>
-                        <span className={`text-[9px] font-bold ${convRate < 40 ? "text-rose-500" : convRate < 70 ? "text-amber-500" : "text-emerald-600"}`}>{convRate}%</span>
-                      </div>
-                      <div className="h-1 bg-white/60 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${convRate < 40 ? "bg-rose-400" : convRate < 70 ? "bg-amber-400" : "bg-emerald-400"}`}
-                          style={{ width: `${convRate}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
 
-                {/* ═══ AI INSIGHT CARDS per stage ═══ */}
-                {showInsights && insights.length > 0 && (
-                  <div className="space-y-1.5 mb-2 px-0.5">
-                    {insights.map((insight, ii) => (
-                      <InsightCard
-                        key={ii}
-                        insight={insight}
-                        expanded={!!expandedInsights[`${stage}-${ii}`]}
-                        onToggle={() => toggleInsight(stage, ii)}
-                      />
-                    ))}
+                  {/* Count badge */}
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${count > 0 ? acc.badge : "bg-slate-100 text-slate-400"}`}>
+                    {count} {count === 1 ? "candidate" : "candidates"}
+                  </span>
+
+                  {/* Conversion rate */}
+                  {rate !== null && (
+                    <span className={`text-[11px] font-semibold shrink-0 tabular-nums ${rate < 40 ? "text-rose-500" : rate < 70 ? "text-amber-500" : "text-emerald-600"}`}>
+                      {rate}% from prev
+                    </span>
+                  )}
+
+                  {/* Chevron */}
+                  <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                </button>
+
+                {/* Expanded candidates */}
+                {isOpen && (
+                  <div className="px-5 pb-4 border-t border-slate-100">
+                    {count === 0 ? (
+                      <p className="text-xs text-slate-400 italic py-3">No candidates at this stage yet. Drag a card here to move someone in.</p>
+                    ) : (
+                      <div className="pt-3 space-y-1.5">
+                        {[...stageCandidates].sort((a, b) => b.match - a.match).map(cand => (
+                          <div
+                            key={cand.id}
+                            draggable
+                            onDragStart={() => setDraggedId(cand.id)}
+                            onClick={() => onOpenCandidate(cand.id)}
+                            className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-slate-100 hover:border-slate-300 hover:bg-slate-50 cursor-pointer transition group"
+                          >
+                            {/* Avatar */}
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 ${cand.match >= 90 ? "bg-emerald-500" : cand.match >= 80 ? "bg-indigo-500" : "bg-slate-400"}`}>
+                              {cand.name.split(" ").map(n => n[0]).join("")}
+                            </div>
+
+                            {/* Name + meta */}
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold text-slate-900 truncate">{cand.name}</div>
+                              <div className="text-xs text-slate-400 truncate">{cand.exp} yrs · {cand.location} · {cand.source}</div>
+                            </div>
+
+                            {/* Match score */}
+                            <div className="shrink-0 flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-slate-700 tabular-nums">{cand.match}%</span>
+                              <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full ${cand.match >= 90 ? "bg-emerald-500" : cand.match >= 80 ? "bg-indigo-400" : "bg-slate-400"}`} style={{ width: `${cand.match}%` }} />
+                              </div>
+                            </div>
+
+                            {/* Drag handle */}
+                            <GripVertical className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-400 shrink-0" />
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
-
-                {/* Candidate cards */}
-                <div className="space-y-2">
-                  {stageCandidates.map((cand) => (
-                    <div
-                      key={cand.id}
-                      draggable
-                      onDragStart={() => setDraggedId(cand.id)}
-                      onClick={() => onOpenCandidate(cand.id)}
-                      className="bg-white rounded-lg border border-slate-200 p-3 cursor-pointer hover:shadow-md hover:border-indigo-300 transition group"
-                    >
-                      <div className="flex items-start gap-2">
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 bg-gradient-to-br ${cand.match >= 90 ? "from-emerald-500 to-teal-500" : cand.match >= 80 ? "from-indigo-500 to-violet-500" : "from-amber-500 to-orange-500"}`}>
-                          {cand.name.split(" ").map(n => n[0]).join("")}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-semibold text-slate-900 truncate">{cand.name}</div>
-                          <div className="text-[10px] text-slate-500 mt-0.5 truncate">{cand.exp} yrs · {cand.source}</div>
-                        </div>
-                        <GripVertical className="w-3 h-3 text-slate-300 group-hover:text-slate-400 shrink-0" />
-                      </div>
-                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                        <div className="flex items-center gap-1">
-                          <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
-                          <span className="text-[10px] font-bold text-slate-700">{cand.match}%</span>
-                        </div>
-                        <div className="text-[9px] text-slate-400 truncate ml-1">{cand.location}</div>
-                      </div>
-                    </div>
-                  ))}
-                  {stageCandidates.length === 0 && (
-                    <div className="text-[10px] text-slate-400 text-center py-4 italic">drop here</div>
-                  )}
-                </div>
               </div>
             );
           })}
         </div>
-      </Card>
+      </div>
 
-      {/* JD + Source Mix */}
+      {/* ════════════════════════════════════════════
+          SECTION 2 — AI INSIGHTS (per stage, below pipeline)
+          ════════════════════════════════════════════ */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">AI Stage Insights</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Signals, risks, and recommendations generated per stage</p>
+          </div>
+          <button
+            onClick={() => setShowAiInsights(v => !v)}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${showAiInsights ? "border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}
+          >
+            {showAiInsights ? "Hide insights" : "Show insights"}
+          </button>
+        </div>
+
+        {showAiInsights && (
+          <div className="space-y-3">
+            {stageOrder.map(stage => {
+              const insights = stageInsights[stage] || [];
+              if (insights.length === 0) return null;
+              const acc = stageAccent[stage];
+              const allOpen = insights.every((_, ii) => expandedInsights[`${stage}-${ii}`]);
+
+              return (
+                <div key={stage} className={`rounded-xl border border-slate-200 overflow-hidden border-l-4 ${acc.accent}`}>
+                  {/* Stage label */}
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${acc.dot}`} />
+                      <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">{stage}</span>
+                      <span className="text-xs text-slate-400">{insights.length} signal{insights.length > 1 ? "s" : ""}</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const next = !allOpen;
+                        const patch = {};
+                        insights.forEach((_, ii) => { patch[`${stage}-${ii}`] = next; });
+                        setExpandedInsights(prev => ({ ...prev, ...patch }));
+                      }}
+                      className="text-[11px] font-semibold text-slate-500 hover:text-slate-700"
+                    >
+                      {allOpen ? "Collapse" : "Expand"} all
+                    </button>
+                  </div>
+
+                  {/* Insight rows */}
+                  <div className="divide-y divide-slate-100">
+                    {insights.map((insight, ii) => {
+                      const key = `${stage}-${ii}`;
+                      const isOpen = expandedInsights[key];
+                      const ss = signalStyle[insight.type] || signalStyle.insight;
+                      return (
+                        <div key={ii} className="bg-white">
+                          <button
+                            onClick={() => toggleInsight(key)}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition"
+                          >
+                            <span className="text-base shrink-0">{ss.icon}</span>
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <span className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded ${ss.bg} ${ss.text} border ${ss.border} shrink-0`}>{ss.label}</span>
+                              <span className="text-sm font-semibold text-slate-800 truncate">{insight.label}</span>
+                            </div>
+                            <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                          </button>
+                          {isOpen && (
+                            <div className={`px-4 pb-3 mx-4 mb-3 rounded-lg text-sm text-slate-600 leading-relaxed ${ss.bg} border ${ss.border} -mt-1`}>
+                              <p className="pt-3">{insight.text}</p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── JD + Source Mix ── */}
       <div className="grid grid-cols-3 gap-6">
         <Card className="col-span-2 p-6">
           <h2 className="text-lg font-bold text-slate-900 mb-4">Job Description</h2>
@@ -1364,18 +1449,34 @@ const RequisitionDetail = ({ req, candidates, onBack, onUpdateCandidate, onOpenC
             <p><strong>Role overview:</strong> We're hiring a {req.title} for the {req.project} initiative — a critical multi-year program modernizing core platform infrastructure for an enterprise client.</p>
             <p className="mt-3"><strong>What you'll do:</strong> Own end-to-end feature delivery across the stack. Partner with architects and the client's product team. Contribute to technical design reviews and mentor 1–2 mid-level engineers.</p>
             <div className="mt-4 grid grid-cols-2 gap-4">
-              <div><div className="text-xs font-bold text-emerald-700 uppercase tracking-wider mb-2">Required</div><div className="flex flex-wrap gap-1.5">{req.skills.map(s => <Pill key={s} tone="emerald">{s}</Pill>)}</div></div>
-              <div><div className="text-xs font-bold text-sky-700 uppercase tracking-wider mb-2">Good to have</div><div className="flex flex-wrap gap-1.5"><Pill tone="sky">GraphQL</Pill><Pill tone="sky">Kafka</Pill><Pill tone="sky">Docker</Pill><Pill tone="sky">Domain expertise</Pill></div></div>
+              <div>
+                <div className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Required</div>
+                <div className="flex flex-wrap gap-1.5">{req.skills.map(s => <Pill key={s} tone="emerald">{s}</Pill>)}</div>
+              </div>
+              <div>
+                <div className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Good to have</div>
+                <div className="flex flex-wrap gap-1.5"><Pill tone="sky">GraphQL</Pill><Pill tone="sky">Kafka</Pill><Pill tone="sky">Docker</Pill><Pill tone="sky">Domain expertise</Pill></div>
+              </div>
             </div>
           </div>
         </Card>
         <Card className="p-6">
           <h2 className="text-lg font-bold text-slate-900 mb-4">Source Mix</h2>
           <div className="space-y-3">
-            {[{ name: "LinkedIn", pct: 48, color: "bg-sky-500" }, { name: "Referrals", pct: 24, color: "bg-emerald-500" }, { name: "Naukri", pct: 18, color: "bg-amber-500" }, { name: "Internal DB", pct: 10, color: "bg-violet-500" }].map((s) => (
+            {[
+              { name: "LinkedIn",    pct: 48 },
+              { name: "Referrals",   pct: 24 },
+              { name: "Naukri",      pct: 18 },
+              { name: "Internal DB", pct: 10 },
+            ].map((s) => (
               <div key={s.name}>
-                <div className="flex items-center justify-between text-xs mb-1"><span className="font-medium text-slate-700">{s.name}</span><span className="font-bold text-slate-900">{s.pct}%</span></div>
-                <div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className={`h-full ${s.color} rounded-full`} style={{ width: `${s.pct}%` }} /></div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="font-medium text-slate-700">{s.name}</span>
+                  <span className="font-bold text-slate-900">{s.pct}%</span>
+                </div>
+                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-slate-400 rounded-full" style={{ width: `${s.pct}%` }} />
+                </div>
               </div>
             ))}
           </div>
@@ -1559,7 +1660,7 @@ const candidateTimelines = {
     currentStage: "Interviewed",
     events: [
       { stage: "Sourced",     status: "completed", date: "Apr 18, 2025", time: "10:14 AM", actor: "AI — LinkedIn scan", aiNote: "Profile surfaced via automated LinkedIn match. 94% fit score driven by React + Node + PostgreSQL alignment. Flagged for immediate recruiter review.", sentiment: "positive", tags: ["Strong match", "Active job seeker"] },
-      { stage: "Screened",    status: "completed", date: "Apr 20, 2025", time: "2:30 PM",  actor: "Neha K · Recruiter", aiNote: "30-min intro call. Excellent communication — structured, concise, asked sharp questions about the platform. Confirmed TypeScript comfort and open to Bangalore HQ. Comp expectation within band.", sentiment: "positive", tags: ["Communication: 9.2/10", "Comp aligned"] },
+      { stage: "Screened",    status: "completed", date: "Apr 20, 2025", time: "2:30 PM",  actor: "Riya K · Recruiter", aiNote: "30-min intro call. Excellent communication — structured, concise, asked sharp questions about the platform. Confirmed TypeScript comfort and open to Bangalore HQ. Comp expectation within band.", sentiment: "positive", tags: ["Communication: 9.2/10", "Comp aligned"] },
       { stage: "Shortlisted", status: "completed", date: "Apr 22, 2025", time: "9:00 AM",  actor: "AI + Recruiter consensus", aiNote: "Moved to shortlist after resume deep-dive. Standout: led 3 zero-downtime DB migrations at Stripe. Minor gap on Kubernetes — not blockers for this role. Ranked #2 of 14 shortlisted.", sentiment: "positive", tags: ["Rank #2 of 14", "Technical depth"] },
       { stage: "Interviewed", status: "active",    date: "Apr 28, 2025", time: "11:00 AM", actor: "Ankit S · Tech Lead", aiNote: "System design round completed. Exceptional depth — designed multi-tenant audit log with correct WORM semantics and S3 cold-storage partitioning. Minor hesitation on Kafka consumer group offsets but self-corrected. Coding round scheduled May 3.", sentiment: "positive", tags: ["System design: 9.0/10", "Round 2 pending"] },
       { stage: "Offered",     status: "upcoming",  date: "—", time: "—", actor: "—", aiNote: "Pending completion of coding round and culture panel. Projected offer date: May 8–10 if rounds complete on schedule.", sentiment: "neutral", tags: ["Projected: May 8–10"] },
@@ -1570,8 +1671,8 @@ const candidateTimelines = {
     currentStage: "Shortlisted",
     events: [
       { stage: "Sourced",     status: "completed", date: "Apr 15, 2025", time: "3:20 PM",  actor: "Referral — Divya N",  aiNote: "Internal referral from Divya Nair (Senior Engineer). Marcus is a Staff Engineer at Datadog with platform-infra depth. Match score 91% — strong on TypeScript and Kafka.", sentiment: "positive", tags: ["Referral", "91% match"] },
-      { stage: "Screened",    status: "completed", date: "Apr 17, 2025", time: "4:00 PM",  actor: "Neha K · Recruiter",  aiNote: "Strong screen. Marcus communicates with precision — detailed answers, good at tradeoff reasoning. Raised comp expectation: ₹55L target vs band ceiling of ₹50L. Flagged for HM review before proceeding.", sentiment: "warning", tags: ["Comp gap: ₹5L", "Communication: 8.8/10"] },
-      { stage: "Shortlisted", status: "active",    date: "Apr 23, 2025", time: "10:00 AM", actor: "Neha K + HM consensus", aiNote: "HM reviewed profile and approved to proceed despite comp gap — role impact justifies stretching band. Awaiting interview scheduling. Note: Marcus mentioned a competing offer from Atlassian. Prioritise scheduling.", sentiment: "warning", tags: ["Competing offer", "Band stretch approved"] },
+      { stage: "Screened",    status: "completed", date: "Apr 17, 2025", time: "4:00 PM",  actor: "Riya K · Recruiter",  aiNote: "Strong screen. Marcus communicates with precision — detailed answers, good at tradeoff reasoning. Raised comp expectation: ₹55L target vs band ceiling of ₹50L. Flagged for HM review before proceeding.", sentiment: "warning", tags: ["Comp gap: ₹5L", "Communication: 8.8/10"] },
+      { stage: "Shortlisted", status: "active",    date: "Apr 23, 2025", time: "10:00 AM", actor: "Riya K + HM consensus", aiNote: "HM reviewed profile and approved to proceed despite comp gap — role impact justifies stretching band. Awaiting interview scheduling. Note: Marcus mentioned a competing offer from Atlassian. Prioritise scheduling.", sentiment: "warning", tags: ["Competing offer", "Band stretch approved"] },
       { stage: "Interviewed", status: "upcoming",  date: "May 3, 2025",  time: "3:00 PM",  actor: "Ankit S (scheduled)", aiNote: "System design round booked. HM personally requested to observe. Candidate confirmed availability.", sentiment: "neutral", tags: ["Scheduled: May 3"] },
       { stage: "Offered",     status: "upcoming",  date: "—", time: "—", actor: "—", aiNote: "Pending interview outcome. Comp negotiation likely required.", sentiment: "neutral", tags: [] },
       { stage: "Decision",    status: "upcoming",  date: "—", time: "—", actor: "—", aiNote: "No data yet.", sentiment: "neutral", tags: [] },
@@ -1581,7 +1682,7 @@ const candidateTimelines = {
     currentStage: "Offered",
     events: [
       { stage: "Sourced",     status: "completed", date: "Apr 10, 2025", time: "9:45 AM",  actor: "AI — Internal DB",    aiNote: "Surfaced from internal database — Nina applied 8 months ago for a different role and was held. Reactivated for Apex Banking. Match score 96% — highest in the entire pipeline.", sentiment: "positive", tags: ["Internal DB", "96% match — #1 in pipeline"] },
-      { stage: "Screened",    status: "completed", date: "Apr 12, 2025", time: "11:00 AM", actor: "Neha K · Recruiter",  aiNote: "Outstanding intro call. Nina had already researched the Apex Banking project context from public sources. Communication score 9.4 — best in this cohort. Confirmed comp alignment and 30-day notice period.", sentiment: "positive", tags: ["Communication: 9.4/10", "Notice: 30 days"] },
+      { stage: "Screened",    status: "completed", date: "Apr 12, 2025", time: "11:00 AM", actor: "Riya K · Recruiter",  aiNote: "Outstanding intro call. Nina had already researched the Apex Banking project context from public sources. Communication score 9.4 — best in this cohort. Confirmed comp alignment and 30-day notice period.", sentiment: "positive", tags: ["Communication: 9.4/10", "Notice: 30 days"] },
       { stage: "Shortlisted", status: "completed", date: "Apr 14, 2025", time: "2:00 PM",  actor: "AI + Recruiter",      aiNote: "Unanimous shortlist. Built equivalent platform at Freshworks (multi-tenant, 200k users). Reference from ex-CTO provided unprompted. Ranked #1 across all shortlisted candidates.", sentiment: "positive", tags: ["Rank #1 of 14", "CTO reference"] },
       { stage: "Interviewed", status: "completed", date: "Apr 21, 2025", time: "10:00 AM", actor: "Ankit S + HM panel",  aiNote: "All 4 rounds completed in a single day at Nina's request. System design (9.3), coding (9.1), HM (strong hire), culture (strong hire). Fastest interview-to-offer pipeline this quarter. Zero concerns raised.", sentiment: "positive", tags: ["All rounds: 1 day", "4/4 strong hire"] },
       { stage: "Offered",     status: "active",    date: "Apr 28, 2025", time: "5:00 PM",  actor: "HR · Offer dispatch",  aiNote: "Formal offer sent: ₹62L + ESOP + signing bonus. Within band. No response after 3 days — risk flag raised by AI. Recommend follow-up call today. Competing offer from Razorpay suspected based on LinkedIn activity.", sentiment: "warning", tags: ["⚠ 3 days no response", "Competing offer risk"] },
@@ -1592,7 +1693,7 @@ const candidateTimelines = {
     currentStage: "Hired",
     events: [
       { stage: "Sourced",     status: "completed", date: "Mar 28, 2025", time: "11:30 AM", actor: "Referral — Karan M",  aiNote: "Referred by Karan Malhotra (Principal Engineer). Sara is a Senior Engineer at Klarna with fintech + high-scale background. Match score 93%.", sentiment: "positive", tags: ["Referral", "93% match"] },
-      { stage: "Screened",    status: "completed", date: "Mar 30, 2025", time: "1:00 PM",  actor: "Neha K · Recruiter",  aiNote: "Excellent screen. Sara communicates as clearly in writing as verbally — sent a follow-up summary email within an hour of the call. Strong on async collaboration signals. Comp fully aligned.", sentiment: "positive", tags: ["Communication: 9.1/10", "Async-strong"] },
+      { stage: "Screened",    status: "completed", date: "Mar 30, 2025", time: "1:00 PM",  actor: "Riya K · Recruiter",  aiNote: "Excellent screen. Sara communicates as clearly in writing as verbally — sent a follow-up summary email within an hour of the call. Strong on async collaboration signals. Comp fully aligned.", sentiment: "positive", tags: ["Communication: 9.1/10", "Async-strong"] },
       { stage: "Shortlisted", status: "completed", date: "Apr 1, 2025",  time: "9:30 AM",  actor: "AI + Recruiter",      aiNote: "Shortlisted day 1. Backchannel reference from shared connection (positive). Kafka experience directly relevant to Apex event pipeline. Ranked #3 of 14.", sentiment: "positive", tags: ["Rank #3", "Backchannel: positive"] },
       { stage: "Interviewed", status: "completed", date: "Apr 8, 2025",  time: "10:00 AM", actor: "Ankit S + HM",        aiNote: "3 rounds over 2 days. Coding: clean, well-documented, proactive about edge cases. System design: strong — introduced event sourcing pattern the team hadn't considered. Culture: immediate fit. All interviewers: strong hire.", sentiment: "positive", tags: ["Coding", "System design", "Culture: 3/3 strong hire"] },
       { stage: "Offered",     status: "completed", date: "Apr 14, 2025", time: "4:00 PM",  actor: "HR · Offer dispatch",  aiNote: "Offer dispatched: ₹58L + ESOP. Sara accepted within 18 hours — fastest accept time this quarter. No counter-offer or negotiation. Notice period: 3 weeks.", sentiment: "positive", tags: ["Accepted in 18h", "No negotiation"] },
@@ -1603,11 +1704,11 @@ const candidateTimelines = {
     currentStage: "Sourced",
     events: [
       { stage: "Sourced",     status: "active",    date: "Apr 25, 2025", time: "8:00 AM",  actor: "AI — LinkedIn scan",  aiNote: "Profile auto-matched on React + Node.js keywords. Match score 71% — below 80% threshold for auto-shortlist. Flagged for manual recruiter review. MongoDB primary stack — not aligned with PostgreSQL requirement.", sentiment: "warning", tags: ["71% match", "Below threshold", "Stack mismatch"] },
-      { stage: "Screened",    status: "skipped",   date: "—", time: "—", actor: "Neha K · Recruiter",  aiNote: "Recruiter reviewed profile and decided not to screen. Reasons: 4 yrs experience (below 5yr floor), agency-only background, no TypeScript exposure. Marked as 'Reject — experience floor'.", sentiment: "negative", tags: ["Not screened", "Below exp floor"] },
+      { stage: "Screened",    status: "skipped",   date: "—", time: "—", actor: "Riya K · Recruiter",  aiNote: "Recruiter reviewed profile and decided not to screen. Reasons: 4 yrs experience (below 5yr floor), agency-only background, no TypeScript exposure. Marked as 'Reject — experience floor'.", sentiment: "negative", tags: ["Not screened", "Below exp floor"] },
       { stage: "Shortlisted", status: "skipped",   date: "—", time: "—", actor: "—", aiNote: "Not reached.", sentiment: "neutral", tags: [] },
       { stage: "Interviewed", status: "skipped",   date: "—", time: "—", actor: "—", aiNote: "Not reached.", sentiment: "neutral", tags: [] },
       { stage: "Offered",     status: "skipped",   date: "—", time: "—", actor: "—", aiNote: "Not reached.", sentiment: "neutral", tags: [] },
-      { stage: "Decision",    status: "completed", date: "Apr 26, 2025", time: "9:00 AM",  actor: "Neha K · Recruiter",  aiNote: "Candidate rejected at sourcing stage. Feedback: experience below floor, stack mismatch (MongoDB vs PostgreSQL), agency-only background doesn't meet enterprise project requirements. Archived.", sentiment: "negative", tags: ["Rejected at source", "Archived"] },
+      { stage: "Decision",    status: "completed", date: "Apr 26, 2025", time: "9:00 AM",  actor: "Riya K · Recruiter",  aiNote: "Candidate rejected at sourcing stage. Feedback: experience below floor, stack mismatch (MongoDB vs PostgreSQL), agency-only background doesn't meet enterprise project requirements. Archived.", sentiment: "negative", tags: ["Rejected at source", "Archived"] },
     ],
   },
 };
@@ -1620,7 +1721,7 @@ const generateTimeline = (candidate) => {
     currentStage: candidate.stage,
     events: [
       { stage: "Sourced",     status: stageIndex >= 0 ? "completed" : "upcoming", date: "Apr 1, 2025",  time: "9:00 AM",  actor: `AI — ${candidate.source}`,  aiNote: `Profile matched via ${candidate.source} with ${candidate.match}% fit score. ${candidate.strengths[0] || "Meets core requirements"}.`, sentiment: "positive", tags: [`${candidate.match}% match`, candidate.source] },
-      { stage: "Screened",    status: stageIndex >= 1 ? "completed" : stageIndex === 0 ? "upcoming" : "skipped", date: stageIndex >= 1 ? "Apr 5, 2025" : "—", time: stageIndex >= 1 ? "2:00 PM" : "—", actor: "Neha K · Recruiter", aiNote: stageIndex >= 1 ? `Intro screen completed. ${candidate.gaps[0] ? `Note: ${candidate.gaps[0]}.` : "No major concerns."} Communication score: ${candidate.commScore}/10.` : "Not yet reached.", sentiment: stageIndex >= 1 ? (candidate.commScore >= 8.5 ? "positive" : "warning") : "neutral", tags: stageIndex >= 1 ? [`Comm: ${candidate.commScore}/10`] : [] },
+      { stage: "Screened",    status: stageIndex >= 1 ? "completed" : stageIndex === 0 ? "upcoming" : "skipped", date: stageIndex >= 1 ? "Apr 5, 2025" : "—", time: stageIndex >= 1 ? "2:00 PM" : "—", actor: "Riya K · Recruiter", aiNote: stageIndex >= 1 ? `Intro screen completed. ${candidate.gaps[0] ? `Note: ${candidate.gaps[0]}.` : "No major concerns."} Communication score: ${candidate.commScore}/10.` : "Not yet reached.", sentiment: stageIndex >= 1 ? (candidate.commScore >= 8.5 ? "positive" : "warning") : "neutral", tags: stageIndex >= 1 ? [`Comm: ${candidate.commScore}/10`] : [] },
       { stage: "Shortlisted", status: stageIndex >= 2 ? "completed" : stageIndex === 1 ? "upcoming" : "skipped", date: stageIndex >= 2 ? "Apr 10, 2025" : "—", time: stageIndex >= 2 ? "10:00 AM" : "—", actor: "Recruiter + AI", aiNote: stageIndex >= 2 ? `Shortlisted based on ${candidate.strengths[0] || "overall profile strength"}. Technical score: ${candidate.techScore}/10.` : "Not yet reached.", sentiment: stageIndex >= 2 ? "positive" : "neutral", tags: stageIndex >= 2 ? [`Tech: ${candidate.techScore}/10`] : [] },
       { stage: "Interviewed", status: stageIndex >= 3 ? "completed" : stageIndex === 2 ? "active" : "upcoming", date: stageIndex >= 3 ? "Apr 18, 2025" : "—", time: stageIndex >= 3 ? "11:00 AM" : "—", actor: "Tech panel", aiNote: stageIndex >= 3 ? `Interview rounds completed. Overall technical assessment: ${candidate.techScore}/10. Recommendation: ${candidate.recommendation}.` : "Pending shortlist completion.", sentiment: stageIndex >= 3 ? (candidate.recommendation === "Proceed" ? "positive" : candidate.recommendation === "Hold" ? "warning" : "negative") : "neutral", tags: stageIndex >= 3 ? [candidate.recommendation] : [] },
       { stage: "Offered",     status: stageIndex >= 4 ? (stageIndex === 4 ? "active" : "completed") : "upcoming", date: stageIndex >= 4 ? "Apr 25, 2025" : "—", time: stageIndex >= 4 ? "5:00 PM" : "—", actor: "HR", aiNote: stageIndex >= 4 ? "Formal offer extended. Awaiting candidate response." : "Pending interview completion.", sentiment: "neutral", tags: [] },
@@ -2206,7 +2307,7 @@ const Admin = () => {
 
 /* ---------- COPILOT DRAWER ---------- */
 const CopilotDrawer = ({ open, onClose }) => {
-  const [messages, setMessages] = useState([{ role: "ai", text: "Hi Neha — I'm your recruiting copilot. Ask about candidates, funnels, or sourcing performance." }]);
+  const [messages, setMessages] = useState([{ role: "ai", text: "Hi Riya — I'm your recruiting copilot. Ask about candidates, funnels, or sourcing performance." }]);
   const [input, setInput] = useState("");
 
   const send = (q) => {
