@@ -112,7 +112,7 @@ const Sidebar = ({ active, onNav }) => {
     { key: "requisitions", label: "Requisitions", icon: Briefcase },
     { key: "jd-generator", label: "JD Generator", icon: Sparkles, badge: "AI" },
     { key: "sourcing", label: "Sourcing", icon: Users },
-    { key: "screening", label: "Screening", icon: MessageSquare, badge: "AI" },
+    { key: "screening-hub", label: "Screening", icon: MessageSquare, badge: "AI" },
     { key: "admin", label: "Admin", icon: Settings },
   ];
   return (
@@ -655,6 +655,115 @@ const CandidateDetail = ({ candidate, onBack, onScreen }) => {
   );
 };
 
+/* ---------- SCREENING HUB (sidebar landing page) ---------- */
+const ScreeningHub = ({ candidates, onOpenCandidate, onStartScreening }) => {
+  const screened = candidates.filter(c => ["Shortlisted", "Interviewed", "Offered", "Hired"].includes(c.stage));
+  const recColors = { Proceed: "emerald", Hold: "amber", Reject: "rose" };
+  const recIcons = { Proceed: "✓", Hold: "~", Reject: "✕" };
+
+  const stats = [
+    { label: "Ready to Screen", value: candidates.filter(c => c.stage === "Shortlisted").length, tone: "indigo" },
+    { label: "Screened", value: candidates.filter(c => ["Interviewed", "Offered", "Hired"].includes(c.stage)).length, tone: "violet" },
+    { label: "Recommended Proceed", value: candidates.filter(c => c.recommendation === "Proceed").length, tone: "emerald" },
+    { label: "On Hold / Reject", value: candidates.filter(c => ["Hold","Reject"].includes(c.recommendation)).length, tone: "amber" },
+  ];
+
+  const toneGrad = { indigo: "from-indigo-500 to-blue-500", violet: "from-violet-500 to-fuchsia-500", emerald: "from-emerald-500 to-teal-500", amber: "from-amber-500 to-orange-500" };
+
+  return (
+    <div className="p-8 space-y-6">
+      <div className="flex items-end justify-between">
+        <div>
+          <div className="text-xs font-semibold text-violet-600 uppercase tracking-widest mb-1 flex items-center gap-2">
+            <span>⬡</span> AI Screening Assistant
+          </div>
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Screening</h1>
+          <div className="text-sm text-slate-500 mt-1">AI-generated questions, async responses, and automated assessments for shortlisted candidates.</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-4 gap-4">
+        {stats.map((m) => (
+          <Card key={m.label} className="p-5 relative overflow-hidden">
+            <div className={`absolute -right-6 -top-6 w-24 h-24 rounded-full opacity-10 bg-gradient-to-br ${toneGrad[m.tone]}`} />
+            <div className="relative">
+              <div className={`w-2 h-2 rounded-full mb-3 bg-gradient-to-br ${toneGrad[m.tone]}`} style={{width:8,height:8}} />
+              <div className="text-xs text-slate-500 font-medium">{m.label}</div>
+              <div className="text-3xl font-bold text-slate-900 mt-1 tracking-tight">{m.value}</div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      <Card className="p-6">
+        <div className="flex items-center gap-2 mb-5">
+          <MessageSquare className="w-4 h-4 text-violet-600" />
+          <h2 className="text-lg font-bold text-slate-900">Candidates</h2>
+          <Pill tone="violet">{screened.length} in scope</Pill>
+        </div>
+
+        {screened.length === 0 ? (
+          <div className="text-center py-16 text-slate-400">
+            <MessageSquare className="w-10 h-10 mx-auto mb-3 text-slate-300" />
+            <div className="font-semibold text-slate-600">No candidates at Shortlisted stage yet</div>
+            <div className="text-sm mt-1">Move candidates past Shortlisted in the pipeline to screen them here.</div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {[...screened].sort((a, b) => b.match - a.match).map((c) => (
+              <div key={c.id} className="flex items-center gap-4 p-4 rounded-xl border border-slate-100 hover:border-violet-200 hover:bg-violet-50/20 transition group">
+                <div className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 bg-gradient-to-br ${c.match >= 90 ? "from-emerald-500 to-teal-500" : c.match >= 80 ? "from-indigo-500 to-violet-500" : "from-amber-500 to-orange-500"}`}>
+                  {c.name.split(" ").map(n => n[0]).join("")}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-sm text-slate-900">{c.name}</span>
+                    <Pill tone={c.stage === "Hired" ? "emerald" : c.stage === "Offered" ? "amber" : "indigo"}>{c.stage}</Pill>
+                    {c.recommendation && (
+                      <Pill tone={recColors[c.recommendation]}>
+                        {recIcons[c.recommendation]} {c.recommendation}
+                      </Pill>
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5 truncate">{c.title}</div>
+                  <div className="flex flex-wrap gap-1 mt-1.5">{c.skills.slice(0, 4).map(s => <Pill key={s}>{s}</Pill>)}</div>
+                </div>
+
+                <div className="text-center shrink-0 hidden sm:block">
+                  <ScoreRing score={c.match} size={48} />
+                  <div className="text-[10px] text-slate-400 mt-1">Fit Score</div>
+                </div>
+
+                <div className="flex flex-col gap-2 shrink-0">
+                  <button onClick={() => onOpenCandidate(c.id)} className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:border-indigo-300 hover:text-indigo-700 transition">
+                    View Profile
+                  </button>
+                  <button onClick={() => onStartScreening(c.id)} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-sm hover:shadow-md transition">
+                    Run Screening
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card className="p-5 bg-gradient-to-br from-indigo-50 via-violet-50 to-fuchsia-50 border-indigo-200">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shrink-0">
+            <Bot className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <div className="font-semibold text-sm text-slate-900 mb-1">How AI Screening works</div>
+            <div className="text-xs text-slate-600 leading-relaxed">Click <strong>"Run Screening"</strong> on any candidate to generate role-specific questions based on their profile and the JD. Candidates respond asynchronously, and the AI scores communication, technical depth, and cultural fit — then gives a Proceed / Hold / Reject recommendation.</div>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
 /* ---------- AI SCREENING ---------- */
 const Screening = ({ candidate, onBack }) => {
   const [step, setStep] = useState(0);
@@ -893,7 +1002,9 @@ export default function HumAIne() {
 
   const sidebarActive =
     view.name === "req-detail" ? "requisitions" :
-    view.name === "candidate" || view.name === "screening" ? "sourcing" :
+    view.name === "candidate" && view.from !== "screening-hub" ? "sourcing" :
+    view.name === "candidate" && view.from === "screening-hub" ? "screening" :
+    view.name === "screening" ? "screening" :
     view.name;
 
   return (
@@ -908,8 +1019,9 @@ export default function HumAIne() {
           {view.name === "req-detail" && currentReq && <RequisitionDetail req={currentReq} candidates={candidates} onBack={() => nav("requisitions")} onUpdateCandidate={updateCandidate} onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "req-detail", reqId: view.reqId })} />}
           {view.name === "jd-generator" && <JDGenerator onCreate={() => nav("requisitions")} />}
           {view.name === "sourcing" && <Sourcing requisitions={requisitions} candidates={candidates} onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "sourcing" })} />}
-          {view.name === "candidate" && currentCandidate && <CandidateDetail candidate={currentCandidate} onBack={() => view.from === "req-detail" ? setView({ name: "req-detail", reqId: view.reqId }) : nav("sourcing")} onScreen={() => setView({ name: "screening", candidateId: view.candidateId, from: view.from, reqId: view.reqId })} />}
-          {view.name === "screening" && currentCandidate && <Screening candidate={currentCandidate} onBack={() => setView({ name: "candidate", candidateId: view.candidateId, from: view.from, reqId: view.reqId })} />}
+          {view.name === "screening-hub" && <ScreeningHub candidates={candidates} onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "screening-hub" })} onStartScreening={(id) => setView({ name: "screening", candidateId: id, from: "screening-hub" })} />}
+          {view.name === "candidate" && currentCandidate && <CandidateDetail candidate={currentCandidate} onBack={() => { if (view.from === "req-detail") setView({ name: "req-detail", reqId: view.reqId }); else if (view.from === "screening-hub") nav("screening-hub"); else nav("sourcing"); }} onScreen={() => setView({ name: "screening", candidateId: view.candidateId, from: view.from, reqId: view.reqId })} />}
+          {view.name === "screening" && currentCandidate && <Screening candidate={currentCandidate} onBack={() => { if (view.from === "screening-hub") nav("screening-hub"); else setView({ name: "candidate", candidateId: view.candidateId, from: view.from, reqId: view.reqId }); }} />}
           {view.name === "admin" && <Admin />}
         </div>
       </main>
