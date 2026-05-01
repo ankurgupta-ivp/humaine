@@ -1147,66 +1147,62 @@ const AiHiringSummary = ({ req, showInsights, onToggle }) => {
 /* ---------- REQUISITION DETAIL (kanban + drag-drop + AI Insights Overlay) ---------- */
 
 /* ---------- REQUISITION DETAIL — redesigned pipeline view ---------- */
+
+/* ---------- REQUISITION DETAIL — unified stage cards ---------- */
 const RequisitionDetail = ({ req, candidates, onBack, onUpdateCandidate, onOpenCandidate }) => {
   const reqCandidates = candidates.filter(c => c.reqId === req.id);
-
-  // Which stage cards are open (candidates visible)
-  const [openStages, setOpenStages] = useState(["Interviewed", "Offered"]); // sensible defaults
-  const [showAiInsights, setShowAiInsights] = useState(true);
+  const [openStages, setOpenStages]     = useState(["Interviewed", "Offered"]);
   const [expandedInsights, setExpandedInsights] = useState({});
-  const [draggedId, setDraggedId] = useState(null);
-  const [dragOver, setDragOver] = useState(null);
+  const [draggedId, setDraggedId]       = useState(null);
+  const [dragOver, setDragOver]         = useState(null);
 
-  const toggleStage = (stage) => {
-    setOpenStages(prev =>
-      prev.includes(stage) ? prev.filter(s => s !== stage) : [...prev, stage]
-    );
-  };
+  const toggleStage  = (s) => setOpenStages(p => p.includes(s) ? p.filter(x => x !== s) : [...p, s]);
+  const expandAll    = () => setOpenStages([...stageOrder]);
+  const collapseAll  = () => setOpenStages([]);
+  const toggleInsight = (k) => setExpandedInsights(p => ({ ...p, [k]: !p[k] }));
 
-  const expandAll = () => setOpenStages([...stageOrder]);
-  const collapseAll = () => setOpenStages([]);
-
-  const toggleInsight = (key) =>
-    setExpandedInsights(prev => ({ ...prev, [key]: !prev[key] }));
-
-  // Conversion rate for a given stage index
   const convRate = (idx) => {
     if (idx === 0) return null;
     const prev = reqCandidates.filter(c => c.stage === stageOrder[idx - 1]).length;
     const curr = reqCandidates.filter(c => c.stage === stageOrder[idx]).length;
-    const total = prev + curr;
-    return total === 0 ? 0 : Math.round((curr / total) * 100);
+    const tot  = prev + curr;
+    return tot === 0 ? 0 : Math.round((curr / tot) * 100);
   };
 
-  // Stage styling — intentionally muted: just a left-accent, no full colour fills
-  const stageAccent = {
-    Sourced:     { accent: "border-l-slate-400",   dot: "bg-slate-400",   badge: "bg-slate-100 text-slate-700" },
-    Screened:    { accent: "border-l-slate-500",   dot: "bg-slate-500",   badge: "bg-slate-100 text-slate-700" },
-    Shortlisted: { accent: "border-l-indigo-400",  dot: "bg-indigo-400",  badge: "bg-indigo-50 text-indigo-700" },
-    Interviewed: { accent: "border-l-violet-500",  dot: "bg-violet-500",  badge: "bg-violet-50 text-violet-700" },
-    Offered:     { accent: "border-l-amber-500",   dot: "bg-amber-500",   badge: "bg-amber-50 text-amber-700" },
-    Hired:       { accent: "border-l-emerald-500", dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700" },
+  /* Left-border accent only — keeps page restrained */
+  const accent = {
+    Sourced:     { border: "border-l-slate-400",   dot: "bg-slate-400",   candBadge: "bg-slate-100 text-slate-600" },
+    Screened:    { border: "border-l-slate-500",   dot: "bg-slate-500",   candBadge: "bg-slate-100 text-slate-600" },
+    Shortlisted: { border: "border-l-indigo-400",  dot: "bg-indigo-400",  candBadge: "bg-indigo-50 text-indigo-700" },
+    Interviewed: { border: "border-l-violet-500",  dot: "bg-violet-500",  candBadge: "bg-violet-50 text-violet-700" },
+    Offered:     { border: "border-l-amber-500",   dot: "bg-amber-500",   candBadge: "bg-amber-50 text-amber-700" },
+    Hired:       { border: "border-l-emerald-500", dot: "bg-emerald-500", candBadge: "bg-emerald-50 text-emerald-700" },
   };
 
-  // AI signal type styling — clean, text-based
+  const signalIcon  = { insight: "💡", risk: "⚠️", recommendation: "✅" };
+  const signalLabel = { insight: "Insight", risk: "Risk", recommendation: "Action" };
   const signalStyle = {
-    insight:        { icon: "💡", label: "Insight",     text: "text-slate-700",  bg: "bg-slate-50",   border: "border-slate-200" },
-    risk:           { icon: "⚠️", label: "Risk",        text: "text-rose-700",   bg: "bg-rose-50",    border: "border-rose-200"  },
-    recommendation: { icon: "✅", label: "Recommended", text: "text-emerald-800",bg: "bg-emerald-50", border: "border-emerald-200"},
+    insight:        "bg-slate-50 border-slate-200 text-slate-700",
+    risk:           "bg-rose-50 border-rose-200 text-rose-700",
+    recommendation: "bg-emerald-50 border-emerald-200 text-emerald-800",
+  };
+  const signalBadge = {
+    insight:        "bg-slate-100 text-slate-600",
+    risk:           "bg-rose-100 text-rose-700",
+    recommendation: "bg-emerald-100 text-emerald-700",
   };
 
-  const totalCandidates = reqCandidates.length;
   const sourced = req.sourced;
 
   return (
     <div className="p-8 max-w-5xl space-y-8">
 
-      {/* ── Back ── */}
+      {/* Back */}
       <button onClick={onBack} className="text-sm text-slate-500 hover:text-slate-900 inline-flex items-center gap-1">
         <ChevronRight className="w-4 h-4 rotate-180" />Back to requisitions
       </button>
 
-      {/* ── Header ── */}
+      {/* Header */}
       <div className="flex items-start justify-between gap-6">
         <div>
           <div className="flex items-center gap-2 mb-2">
@@ -1233,45 +1229,47 @@ const RequisitionDetail = ({ req, candidates, onBack, onUpdateCandidate, onOpenC
         </div>
       </div>
 
-      {/* ── AI Hiring Summary (compact) ── */}
-      <AiHiringSummary req={req} showInsights={showAiInsights} onToggle={() => setShowAiInsights(v => !v)} />
+      {/* AI Hiring Summary */}
+      <AiHiringSummary req={req} showInsights onToggle={() => {}} />
 
-      {/* ════════════════════════════════════════════
-          SECTION 1 — PIPELINE (stage cards + candidates)
-          ════════════════════════════════════════════ */}
+      {/* Pipeline section */}
       <div>
-        <div className="flex items-center justify-between mb-4">
+        {/* Section header */}
+        <div className="flex items-center justify-between mb-3">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Pipeline</h2>
-            <p className="text-xs text-slate-500 mt-0.5">{totalCandidates} candidates · click a stage to see names · drag to move</p>
+            <h2 className="text-lg font-bold text-slate-900">Recruitment Lifecycle</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {reqCandidates.length} candidates across {stageOrder.length} stages · expand any stage to view candidates &amp; AI signals
+            </p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={expandAll} className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 px-3 py-1.5 rounded-lg border border-indigo-200 hover:bg-indigo-50 transition">Expand all</button>
+            <button onClick={expandAll}   className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 px-3 py-1.5 rounded-lg border border-indigo-200 hover:bg-indigo-50 transition">Expand all</button>
             <button onClick={collapseAll} className="text-xs font-semibold text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition">Collapse all</button>
           </div>
         </div>
 
         {/* Funnel progress bar */}
-        <div className="flex items-center gap-1 mb-5 bg-slate-100 rounded-full h-2 overflow-hidden">
+        <div className="flex h-1.5 rounded-full overflow-hidden bg-slate-100 mb-5">
           {stageOrder.map((stage, i) => {
             const cnt = reqCandidates.filter(c => c.stage === stage).length;
             const pct = (cnt / Math.max(1, sourced)) * 100;
-            const colors = ["bg-slate-400","bg-slate-500","bg-indigo-400","bg-violet-500","bg-amber-500","bg-emerald-500"];
-            return pct > 0 ? (
-              <div key={stage} className={`h-full ${colors[i]} transition-all`} style={{ width: `${pct}%` }} title={`${stage}: ${cnt}`} />
-            ) : null;
+            const colors = ["bg-slate-300","bg-slate-400","bg-indigo-400","bg-violet-500","bg-amber-400","bg-emerald-500"];
+            return pct > 0 ? <div key={stage} className={`h-full ${colors[i]}`} style={{ width: `${pct}%` }} title={`${stage}: ${cnt}`} /> : null;
           })}
         </div>
 
-        {/* Vertical stage list */}
+        {/* Stage cards */}
         <div className="space-y-2">
           {stageOrder.map((stage, stageIdx) => {
-            const stageCandidates = reqCandidates.filter(c => c.stage === stage);
-            const count = stageCandidates.length;
-            const isOpen = openStages.includes(stage);
-            const acc = stageAccent[stage];
-            const rate = convRate(stageIdx);
-            const hasRisk = (stageInsights[stage] || []).some(i => i.type === "risk");
+            const stageCands   = reqCandidates.filter(c => c.stage === stage);
+            const count        = stageCands.length;
+            const insights     = stageInsights[stage] || [];
+            const riskCount    = insights.filter(i => i.type === "risk").length;
+            const totalSignals = insights.length;
+            const isOpen       = openStages.includes(stage);
+            const acc          = accent[stage];
+            const rate         = convRate(stageIdx);
+            const hasRisk      = riskCount > 0;
 
             return (
               <div
@@ -1279,78 +1277,157 @@ const RequisitionDetail = ({ req, candidates, onBack, onUpdateCandidate, onOpenC
                 onDragOver={e => { e.preventDefault(); setDragOver(stage); }}
                 onDragLeave={() => setDragOver(null)}
                 onDrop={() => { if (draggedId) onUpdateCandidate(draggedId, { stage }); setDraggedId(null); setDragOver(null); }}
-                className={`rounded-xl border-l-4 border border-slate-200 bg-white transition-all ${acc.accent} ${dragOver === stage ? "ring-2 ring-indigo-300 shadow-md" : ""} ${hasRisk && showAiInsights ? "border-t-rose-300 border-r-rose-100 border-b-rose-100" : ""}`}
+                className={`rounded-xl border border-slate-200 border-l-4 bg-white transition-all
+                  ${acc.border}
+                  ${dragOver === stage ? "ring-2 ring-indigo-300 shadow-md" : ""}
+                `}
               >
-                {/* Stage header — always visible, clickable */}
+                {/* ── Card header — always visible ── */}
                 <button
                   onClick={() => toggleStage(stage)}
-                  className="w-full flex items-center gap-4 px-5 py-4 text-left hover:bg-slate-50/50 transition rounded-xl"
+                  className="w-full flex items-center gap-0 px-5 py-4 text-left hover:bg-slate-50/60 transition rounded-xl"
                 >
-                  {/* Dot + name */}
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                  {/* Dot + stage name */}
+                  <div className="flex items-center gap-2.5 flex-1 min-w-0">
                     <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${acc.dot}`} />
                     <span className="font-semibold text-slate-900 text-sm">{stage}</span>
-                    {hasRisk && showAiInsights && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" title="Risk flagged" />
-                    )}
+                    {hasRisk && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />}
                   </div>
 
-                  {/* Count badge */}
-                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full shrink-0 ${count > 0 ? acc.badge : "bg-slate-100 text-slate-400"}`}>
-                    {count} {count === 1 ? "candidate" : "candidates"}
-                  </span>
-
-                  {/* Conversion rate */}
-                  {rate !== null && (
-                    <span className={`text-[11px] font-semibold shrink-0 tabular-nums ${rate < 40 ? "text-rose-500" : rate < 70 ? "text-amber-500" : "text-emerald-600"}`}>
-                      {rate}% from prev
+                  {/* Metrics row */}
+                  <div className="flex items-center gap-3 shrink-0">
+                    {/* Candidate count */}
+                    <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${count > 0 ? acc.candBadge : "bg-slate-100 text-slate-400"}`}>
+                      <Users className="w-3 h-3" />
+                      {count} {count === 1 ? "candidate" : "candidates"}
                     </span>
-                  )}
 
-                  {/* Chevron */}
-                  <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                    {/* Divider */}
+                    {totalSignals > 0 && <span className="w-px h-4 bg-slate-200 shrink-0" />}
+
+                    {/* AI signals — breakdown by type */}
+                    {totalSignals > 0 && (
+                      <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+                        <Sparkles className="w-3 h-3 text-violet-400 shrink-0" />
+                        <span className="font-medium">{totalSignals} AI signal{totalSignals > 1 ? "s" : ""}</span>
+                        {riskCount > 0 && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700">
+                            {riskCount} risk{riskCount > 1 ? "s" : ""}
+                          </span>
+                        )}
+                      </span>
+                    )}
+
+                    {/* Divider */}
+                    {rate !== null && <span className="w-px h-4 bg-slate-200 shrink-0" />}
+
+                    {/* Conversion */}
+                    {rate !== null && (
+                      <span className={`text-xs font-semibold tabular-nums ${rate < 40 ? "text-rose-500" : rate < 70 ? "text-amber-500" : "text-emerald-600"}`}>
+                        {rate}% conv.
+                      </span>
+                    )}
+
+                    <ChevronDown className={`w-4 h-4 text-slate-400 ml-1 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+                  </div>
                 </button>
 
-                {/* Expanded candidates */}
+                {/* ── Expanded body ── */}
                 {isOpen && (
-                  <div className="px-5 pb-4 border-t border-slate-100">
-                    {count === 0 ? (
-                      <p className="text-xs text-slate-400 italic py-3">No candidates at this stage yet. Drag a card here to move someone in.</p>
-                    ) : (
-                      <div className="pt-3 space-y-1.5">
-                        {[...stageCandidates].sort((a, b) => b.match - a.match).map(cand => (
-                          <div
-                            key={cand.id}
-                            draggable
-                            onDragStart={() => setDraggedId(cand.id)}
-                            onClick={() => onOpenCandidate(cand.id)}
-                            className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-slate-100 hover:border-slate-300 hover:bg-slate-50 cursor-pointer transition group"
-                          >
-                            {/* Avatar */}
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 ${cand.match >= 90 ? "bg-emerald-500" : cand.match >= 80 ? "bg-indigo-500" : "bg-slate-400"}`}>
-                              {cand.name.split(" ").map(n => n[0]).join("")}
-                            </div>
+                  <div className="border-t border-slate-100">
+                    <div className="grid grid-cols-2 divide-x divide-slate-100">
 
-                            {/* Name + meta */}
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-semibold text-slate-900 truncate">{cand.name}</div>
-                              <div className="text-xs text-slate-400 truncate">{cand.exp} yrs · {cand.location} · {cand.source}</div>
-                            </div>
-
-                            {/* Match score */}
-                            <div className="shrink-0 flex items-center gap-1.5">
-                              <span className="text-xs font-bold text-slate-700 tabular-nums">{cand.match}%</span>
-                              <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                <div className={`h-full rounded-full ${cand.match >= 90 ? "bg-emerald-500" : cand.match >= 80 ? "bg-indigo-400" : "bg-slate-400"}`} style={{ width: `${cand.match}%` }} />
+                      {/* LEFT — Candidates */}
+                      <div className="p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Candidates</span>
+                          {count > 0 && (
+                            <span className="text-[10px] text-slate-400">sorted by match</span>
+                          )}
+                        </div>
+                        {count === 0 ? (
+                          <p className="text-xs text-slate-400 italic py-2">No candidates here yet. Drag a row in from another stage.</p>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {[...stageCands].sort((a, b) => b.match - a.match).map(cand => (
+                              <div
+                                key={cand.id}
+                                draggable
+                                onDragStart={() => setDraggedId(cand.id)}
+                                onClick={() => onOpenCandidate(cand.id)}
+                                className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-slate-100 hover:border-slate-300 hover:bg-slate-50 cursor-pointer transition group"
+                              >
+                                {/* Avatar */}
+                                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 ${cand.match >= 90 ? "bg-emerald-500" : cand.match >= 80 ? "bg-indigo-500" : "bg-slate-400"}`}>
+                                  {cand.name.split(" ").map(n => n[0]).join("")}
+                                </div>
+                                {/* Name + meta */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-semibold text-slate-900 truncate">{cand.name}</div>
+                                  <div className="text-xs text-slate-400 truncate">{cand.exp} yrs · {cand.source}</div>
+                                </div>
+                                {/* Score */}
+                                <div className="shrink-0 flex items-center gap-2">
+                                  <span className="text-xs font-bold text-slate-700 tabular-nums w-8 text-right">{cand.match}%</span>
+                                  <div className="w-14 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full ${cand.match >= 90 ? "bg-emerald-500" : cand.match >= 80 ? "bg-indigo-400" : "bg-slate-400"}`}
+                                      style={{ width: `${cand.match}%` }}
+                                    />
+                                  </div>
+                                </div>
+                                <GripVertical className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-400 shrink-0" />
                               </div>
-                            </div>
-
-                            {/* Drag handle */}
-                            <GripVertical className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-400 shrink-0" />
+                            ))}
                           </div>
-                        ))}
+                        )}
                       </div>
-                    )}
+
+                      {/* RIGHT — AI Insights */}
+                      <div className="p-4">
+                        <div className="flex items-center gap-1.5 mb-3">
+                          <Sparkles className="w-3.5 h-3.5 text-violet-500 shrink-0" />
+                          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">AI Signals</span>
+                        </div>
+
+                        {insights.length === 0 ? (
+                          <p className="text-xs text-slate-400 italic py-2">No signals for this stage.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {insights.map((insight, ii) => {
+                              const key    = `${stage}-${ii}`;
+                              const isExpanded = expandedInsights[key];
+                              const sStyle = signalStyle[insight.type] || signalStyle.insight;
+                              const sBadge = signalBadge[insight.type] || signalBadge.insight;
+
+                              return (
+                                <div key={ii} className={`rounded-lg border ${sStyle} overflow-hidden`}>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); toggleInsight(key); }}
+                                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:brightness-95 transition"
+                                  >
+                                    <span className="text-sm shrink-0">{signalIcon[insight.type]}</span>
+                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                      <span className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded shrink-0 ${sBadge}`}>
+                                        {signalLabel[insight.type]}
+                                      </span>
+                                      <span className="text-xs font-semibold text-slate-800 truncate">{insight.label}</span>
+                                    </div>
+                                    <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                                  </button>
+                                  {isExpanded && (
+                                    <div className="px-3 pb-3 pt-1 border-t border-current border-opacity-10">
+                                      <p className="text-xs text-slate-700 leading-relaxed">{insight.text}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
                   </div>
                 )}
               </div>
@@ -1359,89 +1436,7 @@ const RequisitionDetail = ({ req, candidates, onBack, onUpdateCandidate, onOpenC
         </div>
       </div>
 
-      {/* ════════════════════════════════════════════
-          SECTION 2 — AI INSIGHTS (per stage, below pipeline)
-          ════════════════════════════════════════════ */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">AI Stage Insights</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Signals, risks, and recommendations generated per stage</p>
-          </div>
-          <button
-            onClick={() => setShowAiInsights(v => !v)}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${showAiInsights ? "border-indigo-200 text-indigo-600 bg-indigo-50 hover:bg-indigo-100" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}
-          >
-            {showAiInsights ? "Hide insights" : "Show insights"}
-          </button>
-        </div>
-
-        {showAiInsights && (
-          <div className="space-y-3">
-            {stageOrder.map(stage => {
-              const insights = stageInsights[stage] || [];
-              if (insights.length === 0) return null;
-              const acc = stageAccent[stage];
-              const allOpen = insights.every((_, ii) => expandedInsights[`${stage}-${ii}`]);
-
-              return (
-                <div key={stage} className={`rounded-xl border border-slate-200 overflow-hidden border-l-4 ${acc.accent}`}>
-                  {/* Stage label */}
-                  <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-200">
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${acc.dot}`} />
-                      <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">{stage}</span>
-                      <span className="text-xs text-slate-400">{insights.length} signal{insights.length > 1 ? "s" : ""}</span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        const next = !allOpen;
-                        const patch = {};
-                        insights.forEach((_, ii) => { patch[`${stage}-${ii}`] = next; });
-                        setExpandedInsights(prev => ({ ...prev, ...patch }));
-                      }}
-                      className="text-[11px] font-semibold text-slate-500 hover:text-slate-700"
-                    >
-                      {allOpen ? "Collapse" : "Expand"} all
-                    </button>
-                  </div>
-
-                  {/* Insight rows */}
-                  <div className="divide-y divide-slate-100">
-                    {insights.map((insight, ii) => {
-                      const key = `${stage}-${ii}`;
-                      const isOpen = expandedInsights[key];
-                      const ss = signalStyle[insight.type] || signalStyle.insight;
-                      return (
-                        <div key={ii} className="bg-white">
-                          <button
-                            onClick={() => toggleInsight(key)}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition"
-                          >
-                            <span className="text-base shrink-0">{ss.icon}</span>
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <span className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded ${ss.bg} ${ss.text} border ${ss.border} shrink-0`}>{ss.label}</span>
-                              <span className="text-sm font-semibold text-slate-800 truncate">{insight.label}</span>
-                            </div>
-                            <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-                          </button>
-                          {isOpen && (
-                            <div className={`px-4 pb-3 mx-4 mb-3 rounded-lg text-sm text-slate-600 leading-relaxed ${ss.bg} border ${ss.border} -mt-1`}>
-                              <p className="pt-3">{insight.text}</p>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* ── JD + Source Mix ── */}
+      {/* JD + Source Mix */}
       <div className="grid grid-cols-3 gap-6">
         <Card className="col-span-2 p-6">
           <h2 className="text-lg font-bold text-slate-900 mb-4">Job Description</h2>
@@ -1455,7 +1450,9 @@ const RequisitionDetail = ({ req, candidates, onBack, onUpdateCandidate, onOpenC
               </div>
               <div>
                 <div className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Good to have</div>
-                <div className="flex flex-wrap gap-1.5"><Pill tone="sky">GraphQL</Pill><Pill tone="sky">Kafka</Pill><Pill tone="sky">Docker</Pill><Pill tone="sky">Domain expertise</Pill></div>
+                <div className="flex flex-wrap gap-1.5">
+                  <Pill tone="sky">GraphQL</Pill><Pill tone="sky">Kafka</Pill><Pill tone="sky">Docker</Pill><Pill tone="sky">Domain expertise</Pill>
+                </div>
               </div>
             </div>
           </div>
@@ -1464,11 +1461,11 @@ const RequisitionDetail = ({ req, candidates, onBack, onUpdateCandidate, onOpenC
           <h2 className="text-lg font-bold text-slate-900 mb-4">Source Mix</h2>
           <div className="space-y-3">
             {[
-              { name: "LinkedIn",    pct: 48 },
-              { name: "Referrals",   pct: 24 },
-              { name: "Naukri",      pct: 18 },
-              { name: "Internal DB", pct: 10 },
-            ].map((s) => (
+              { name: "LinkedIn",   pct: 48 },
+              { name: "Referrals",  pct: 24 },
+              { name: "Naukri",     pct: 18 },
+              { name: "Internal DB",pct: 10 },
+            ].map(s => (
               <div key={s.name}>
                 <div className="flex items-center justify-between text-xs mb-1">
                   <span className="font-medium text-slate-700">{s.name}</span>
