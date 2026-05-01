@@ -1549,18 +1549,282 @@ const Sourcing = ({ requisitions, candidates, onOpenCandidate }) => {
 };
 
 /* ---------- CANDIDATE DETAIL ---------- */
+
+/* ============================================================
+   CANDIDATE JOURNEY TIMELINE
+   Mock per-candidate stage history with AI notes per event.
+   ============================================================ */
+const candidateTimelines = {
+  "c-1": { // Priya Raman — Interviewed
+    currentStage: "Interviewed",
+    events: [
+      { stage: "Sourced",     status: "completed", date: "Apr 18, 2025", time: "10:14 AM", actor: "AI — LinkedIn scan", aiNote: "Profile surfaced via automated LinkedIn match. 94% fit score driven by React + Node + PostgreSQL alignment. Flagged for immediate recruiter review.", sentiment: "positive", tags: ["Strong match", "Active job seeker"] },
+      { stage: "Screened",    status: "completed", date: "Apr 20, 2025", time: "2:30 PM",  actor: "Neha K · Recruiter", aiNote: "30-min intro call. Excellent communication — structured, concise, asked sharp questions about the platform. Confirmed TypeScript comfort and open to Bangalore HQ. Comp expectation within band.", sentiment: "positive", tags: ["Communication: 9.2/10", "Comp aligned"] },
+      { stage: "Shortlisted", status: "completed", date: "Apr 22, 2025", time: "9:00 AM",  actor: "AI + Recruiter consensus", aiNote: "Moved to shortlist after resume deep-dive. Standout: led 3 zero-downtime DB migrations at Stripe. Minor gap on Kubernetes — not blockers for this role. Ranked #2 of 14 shortlisted.", sentiment: "positive", tags: ["Rank #2 of 14", "Technical depth"] },
+      { stage: "Interviewed", status: "active",    date: "Apr 28, 2025", time: "11:00 AM", actor: "Ankit S · Tech Lead", aiNote: "System design round completed. Exceptional depth — designed multi-tenant audit log with correct WORM semantics and S3 cold-storage partitioning. Minor hesitation on Kafka consumer group offsets but self-corrected. Coding round scheduled May 3.", sentiment: "positive", tags: ["System design: 9.0/10", "Round 2 pending"] },
+      { stage: "Offered",     status: "upcoming",  date: "—", time: "—", actor: "—", aiNote: "Pending completion of coding round and culture panel. Projected offer date: May 8–10 if rounds complete on schedule.", sentiment: "neutral", tags: ["Projected: May 8–10"] },
+      { stage: "Decision",    status: "upcoming",  date: "—", time: "—", actor: "—", aiNote: "No data yet. Offer stage must complete first.", sentiment: "neutral", tags: [] },
+    ],
+  },
+  "c-2": { // Marcus Webb — Shortlisted
+    currentStage: "Shortlisted",
+    events: [
+      { stage: "Sourced",     status: "completed", date: "Apr 15, 2025", time: "3:20 PM",  actor: "Referral — Divya N",  aiNote: "Internal referral from Divya Nair (Senior Engineer). Marcus is a Staff Engineer at Datadog with platform-infra depth. Match score 91% — strong on TypeScript and Kafka.", sentiment: "positive", tags: ["Referral", "91% match"] },
+      { stage: "Screened",    status: "completed", date: "Apr 17, 2025", time: "4:00 PM",  actor: "Neha K · Recruiter",  aiNote: "Strong screen. Marcus communicates with precision — detailed answers, good at tradeoff reasoning. Raised comp expectation: ₹55L target vs band ceiling of ₹50L. Flagged for HM review before proceeding.", sentiment: "warning", tags: ["Comp gap: ₹5L", "Communication: 8.8/10"] },
+      { stage: "Shortlisted", status: "active",    date: "Apr 23, 2025", time: "10:00 AM", actor: "Neha K + HM consensus", aiNote: "HM reviewed profile and approved to proceed despite comp gap — role impact justifies stretching band. Awaiting interview scheduling. Note: Marcus mentioned a competing offer from Atlassian. Prioritise scheduling.", sentiment: "warning", tags: ["Competing offer", "Band stretch approved"] },
+      { stage: "Interviewed", status: "upcoming",  date: "May 3, 2025",  time: "3:00 PM",  actor: "Ankit S (scheduled)", aiNote: "System design round booked. HM personally requested to observe. Candidate confirmed availability.", sentiment: "neutral", tags: ["Scheduled: May 3"] },
+      { stage: "Offered",     status: "upcoming",  date: "—", time: "—", actor: "—", aiNote: "Pending interview outcome. Comp negotiation likely required.", sentiment: "neutral", tags: [] },
+      { stage: "Decision",    status: "upcoming",  date: "—", time: "—", actor: "—", aiNote: "No data yet.", sentiment: "neutral", tags: [] },
+    ],
+  },
+  "c-6": { // Nina Patel — Offered (top candidate)
+    currentStage: "Offered",
+    events: [
+      { stage: "Sourced",     status: "completed", date: "Apr 10, 2025", time: "9:45 AM",  actor: "AI — Internal DB",    aiNote: "Surfaced from internal database — Nina applied 8 months ago for a different role and was held. Reactivated for Apex Banking. Match score 96% — highest in the entire pipeline.", sentiment: "positive", tags: ["Internal DB", "96% match — #1 in pipeline"] },
+      { stage: "Screened",    status: "completed", date: "Apr 12, 2025", time: "11:00 AM", actor: "Neha K · Recruiter",  aiNote: "Outstanding intro call. Nina had already researched the Apex Banking project context from public sources. Communication score 9.4 — best in this cohort. Confirmed comp alignment and 30-day notice period.", sentiment: "positive", tags: ["Communication: 9.4/10", "Notice: 30 days"] },
+      { stage: "Shortlisted", status: "completed", date: "Apr 14, 2025", time: "2:00 PM",  actor: "AI + Recruiter",      aiNote: "Unanimous shortlist. Built equivalent platform at Freshworks (multi-tenant, 200k users). Reference from ex-CTO provided unprompted. Ranked #1 across all shortlisted candidates.", sentiment: "positive", tags: ["Rank #1 of 14", "CTO reference"] },
+      { stage: "Interviewed", status: "completed", date: "Apr 21, 2025", time: "10:00 AM", actor: "Ankit S + HM panel",  aiNote: "All 4 rounds completed in a single day at Nina's request. System design (9.3), coding (9.1), HM (strong hire), culture (strong hire). Fastest interview-to-offer pipeline this quarter. Zero concerns raised.", sentiment: "positive", tags: ["All rounds: 1 day", "4/4 strong hire"] },
+      { stage: "Offered",     status: "active",    date: "Apr 28, 2025", time: "5:00 PM",  actor: "HR · Offer dispatch",  aiNote: "Formal offer sent: ₹62L + ESOP + signing bonus. Within band. No response after 3 days — risk flag raised by AI. Recommend follow-up call today. Competing offer from Razorpay suspected based on LinkedIn activity.", sentiment: "warning", tags: ["⚠ 3 days no response", "Competing offer risk"] },
+      { stage: "Decision",    status: "upcoming",  date: "—", time: "—", actor: "—", aiNote: "Follow-up scheduled for May 1. Candidate has not declined — positive signal. Recruiter to gauge timeline and competing offer status.", sentiment: "neutral", tags: ["Follow-up: May 1"] },
+    ],
+  },
+  "c-8": { // Sara Lindqvist — Hired
+    currentStage: "Hired",
+    events: [
+      { stage: "Sourced",     status: "completed", date: "Mar 28, 2025", time: "11:30 AM", actor: "Referral — Karan M",  aiNote: "Referred by Karan Malhotra (Principal Engineer). Sara is a Senior Engineer at Klarna with fintech + high-scale background. Match score 93%.", sentiment: "positive", tags: ["Referral", "93% match"] },
+      { stage: "Screened",    status: "completed", date: "Mar 30, 2025", time: "1:00 PM",  actor: "Neha K · Recruiter",  aiNote: "Excellent screen. Sara communicates as clearly in writing as verbally — sent a follow-up summary email within an hour of the call. Strong on async collaboration signals. Comp fully aligned.", sentiment: "positive", tags: ["Communication: 9.1/10", "Async-strong"] },
+      { stage: "Shortlisted", status: "completed", date: "Apr 1, 2025",  time: "9:30 AM",  actor: "AI + Recruiter",      aiNote: "Shortlisted day 1. Backchannel reference from shared connection (positive). Kafka experience directly relevant to Apex event pipeline. Ranked #3 of 14.", sentiment: "positive", tags: ["Rank #3", "Backchannel: positive"] },
+      { stage: "Interviewed", status: "completed", date: "Apr 8, 2025",  time: "10:00 AM", actor: "Ankit S + HM",        aiNote: "3 rounds over 2 days. Coding: clean, well-documented, proactive about edge cases. System design: strong — introduced event sourcing pattern the team hadn't considered. Culture: immediate fit. All interviewers: strong hire.", sentiment: "positive", tags: ["Coding", "System design", "Culture: 3/3 strong hire"] },
+      { stage: "Offered",     status: "completed", date: "Apr 14, 2025", time: "4:00 PM",  actor: "HR · Offer dispatch",  aiNote: "Offer dispatched: ₹58L + ESOP. Sara accepted within 18 hours — fastest accept time this quarter. No counter-offer or negotiation. Notice period: 3 weeks.", sentiment: "positive", tags: ["Accepted in 18h", "No negotiation"] },
+      { stage: "Decision",    status: "completed", date: "Apr 15, 2025", time: "10:00 AM", actor: "HR · Confirmed",       aiNote: "Hire confirmed. Start date: May 12, 2025. Onboarding pack sent. IT access provisioning initiated. AI summary: fastest end-to-end hire this quarter — 18 days sourced to accepted.", sentiment: "positive", tags: ["✓ Hired", "Start: May 12", "18 days total"] },
+    ],
+  },
+  "c-7": { // Tom Becker — Sourced (low match, rejected early)
+    currentStage: "Sourced",
+    events: [
+      { stage: "Sourced",     status: "active",    date: "Apr 25, 2025", time: "8:00 AM",  actor: "AI — LinkedIn scan",  aiNote: "Profile auto-matched on React + Node.js keywords. Match score 71% — below 80% threshold for auto-shortlist. Flagged for manual recruiter review. MongoDB primary stack — not aligned with PostgreSQL requirement.", sentiment: "warning", tags: ["71% match", "Below threshold", "Stack mismatch"] },
+      { stage: "Screened",    status: "skipped",   date: "—", time: "—", actor: "Neha K · Recruiter",  aiNote: "Recruiter reviewed profile and decided not to screen. Reasons: 4 yrs experience (below 5yr floor), agency-only background, no TypeScript exposure. Marked as 'Reject — experience floor'.", sentiment: "negative", tags: ["Not screened", "Below exp floor"] },
+      { stage: "Shortlisted", status: "skipped",   date: "—", time: "—", actor: "—", aiNote: "Not reached.", sentiment: "neutral", tags: [] },
+      { stage: "Interviewed", status: "skipped",   date: "—", time: "—", actor: "—", aiNote: "Not reached.", sentiment: "neutral", tags: [] },
+      { stage: "Offered",     status: "skipped",   date: "—", time: "—", actor: "—", aiNote: "Not reached.", sentiment: "neutral", tags: [] },
+      { stage: "Decision",    status: "completed", date: "Apr 26, 2025", time: "9:00 AM",  actor: "Neha K · Recruiter",  aiNote: "Candidate rejected at sourcing stage. Feedback: experience below floor, stack mismatch (MongoDB vs PostgreSQL), agency-only background doesn't meet enterprise project requirements. Archived.", sentiment: "negative", tags: ["Rejected at source", "Archived"] },
+    ],
+  },
+};
+
+// Fallback timeline generator for candidates without custom timelines
+const generateTimeline = (candidate) => {
+  const stageIndex = stageOrder.indexOf(candidate.stage);
+  const baseDate = new Date("2025-04-01");
+  return {
+    currentStage: candidate.stage,
+    events: [
+      { stage: "Sourced",     status: stageIndex >= 0 ? "completed" : "upcoming", date: "Apr 1, 2025",  time: "9:00 AM",  actor: `AI — ${candidate.source}`,  aiNote: `Profile matched via ${candidate.source} with ${candidate.match}% fit score. ${candidate.strengths[0] || "Meets core requirements"}.`, sentiment: "positive", tags: [`${candidate.match}% match`, candidate.source] },
+      { stage: "Screened",    status: stageIndex >= 1 ? "completed" : stageIndex === 0 ? "upcoming" : "skipped", date: stageIndex >= 1 ? "Apr 5, 2025" : "—", time: stageIndex >= 1 ? "2:00 PM" : "—", actor: "Neha K · Recruiter", aiNote: stageIndex >= 1 ? `Intro screen completed. ${candidate.gaps[0] ? `Note: ${candidate.gaps[0]}.` : "No major concerns."} Communication score: ${candidate.commScore}/10.` : "Not yet reached.", sentiment: stageIndex >= 1 ? (candidate.commScore >= 8.5 ? "positive" : "warning") : "neutral", tags: stageIndex >= 1 ? [`Comm: ${candidate.commScore}/10`] : [] },
+      { stage: "Shortlisted", status: stageIndex >= 2 ? "completed" : stageIndex === 1 ? "upcoming" : "skipped", date: stageIndex >= 2 ? "Apr 10, 2025" : "—", time: stageIndex >= 2 ? "10:00 AM" : "—", actor: "Recruiter + AI", aiNote: stageIndex >= 2 ? `Shortlisted based on ${candidate.strengths[0] || "overall profile strength"}. Technical score: ${candidate.techScore}/10.` : "Not yet reached.", sentiment: stageIndex >= 2 ? "positive" : "neutral", tags: stageIndex >= 2 ? [`Tech: ${candidate.techScore}/10`] : [] },
+      { stage: "Interviewed", status: stageIndex >= 3 ? "completed" : stageIndex === 2 ? "active" : "upcoming", date: stageIndex >= 3 ? "Apr 18, 2025" : "—", time: stageIndex >= 3 ? "11:00 AM" : "—", actor: "Tech panel", aiNote: stageIndex >= 3 ? `Interview rounds completed. Overall technical assessment: ${candidate.techScore}/10. Recommendation: ${candidate.recommendation}.` : "Pending shortlist completion.", sentiment: stageIndex >= 3 ? (candidate.recommendation === "Proceed" ? "positive" : candidate.recommendation === "Hold" ? "warning" : "negative") : "neutral", tags: stageIndex >= 3 ? [candidate.recommendation] : [] },
+      { stage: "Offered",     status: stageIndex >= 4 ? (stageIndex === 4 ? "active" : "completed") : "upcoming", date: stageIndex >= 4 ? "Apr 25, 2025" : "—", time: stageIndex >= 4 ? "5:00 PM" : "—", actor: "HR", aiNote: stageIndex >= 4 ? "Formal offer extended. Awaiting candidate response." : "Pending interview completion.", sentiment: "neutral", tags: [] },
+      { stage: "Decision",    status: stageIndex >= 5 ? "completed" : "upcoming", date: stageIndex >= 5 ? "Apr 28, 2025" : "—", time: stageIndex >= 5 ? "10:00 AM" : "—", actor: "HR · Confirmed", aiNote: stageIndex >= 5 ? `Candidate ${candidate.stage === "Hired" ? "accepted and joined" : "decision pending"}.` : "Awaiting offer stage.", sentiment: stageIndex >= 5 ? "positive" : "neutral", tags: stageIndex >= 5 ? ["Hired ✓"] : [] },
+    ],
+  };
+};
+
+const getTimeline = (candidate) => candidateTimelines[candidate.id] || generateTimeline(candidate);
+
+/* ---------- CANDIDATE JOURNEY TIMELINE component ---------- */
+const CandidateTimeline = ({ candidate }) => {
+  const timeline = getTimeline(candidate);
+  const [expandedIdx, setExpandedIdx] = useState(null);
+
+  const stageConfig = {
+    Sourced:     { icon: "🔍", color: "indigo",  grad: "from-indigo-500 to-blue-500",    ring: "ring-indigo-400"  },
+    Screened:    { icon: "📋", color: "violet",  grad: "from-violet-500 to-fuchsia-500", ring: "ring-violet-400"  },
+    Shortlisted: { icon: "⭐", color: "fuchsia", grad: "from-fuchsia-500 to-pink-500",   ring: "ring-fuchsia-400" },
+    Interviewed: { icon: "🎯", color: "pink",    grad: "from-pink-500 to-rose-500",      ring: "ring-pink-400"    },
+    Offered:     { icon: "📨", color: "amber",   grad: "from-amber-500 to-orange-500",   ring: "ring-amber-400"   },
+    Decision:    { icon: "✅", color: "emerald", grad: "from-emerald-500 to-teal-500",   ring: "ring-emerald-400" },
+  };
+
+  const statusConfig = {
+    completed: { label: "Completed", dot: "bg-emerald-500",  text: "text-emerald-700", bg: "bg-emerald-50",  border: "border-emerald-200" },
+    active:    { label: "In Progress", dot: "bg-indigo-500 animate-pulse", text: "text-indigo-700", bg: "bg-indigo-50", border: "border-indigo-200" },
+    upcoming:  { label: "Upcoming",   dot: "bg-slate-300",   text: "text-slate-500",   bg: "bg-slate-50",    border: "border-slate-200"   },
+    skipped:   { label: "Skipped",    dot: "bg-rose-400",    text: "text-rose-600",    bg: "bg-rose-50",     border: "border-rose-200"    },
+  };
+
+  const sentimentStyle = {
+    positive: { bar: "bg-emerald-400", badge: "bg-emerald-100 text-emerald-700" },
+    warning:  { bar: "bg-amber-400",   badge: "bg-amber-100 text-amber-700"     },
+    negative: { bar: "bg-rose-400",    badge: "bg-rose-100 text-rose-700"       },
+    neutral:  { bar: "bg-slate-300",   badge: "bg-slate-100 text-slate-600"     },
+  };
+
+  const completedCount = timeline.events.filter(e => e.status === "completed").length;
+  const totalMeaningful = timeline.events.filter(e => e.status !== "upcoming").length;
+  const progressPct = Math.round((completedCount / 6) * 100);
+
+  return (
+    <div className="space-y-4">
+      {/* Timeline header with overall progress */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h2 className="font-bold text-slate-900 text-lg">Candidate Journey</h2>
+          <Pill tone="violet"><Sparkles className="w-3 h-3" />AI Notes</Pill>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="text-xs text-slate-500">{completedCount} of 6 stages complete</div>
+          <div className="w-32 h-2 bg-slate-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 rounded-full transition-all"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+          <div className="text-xs font-bold text-slate-700 tabular-nums">{progressPct}%</div>
+        </div>
+      </div>
+
+      {/* Stage progress strip */}
+      <div className="flex items-center gap-0 bg-slate-50 rounded-2xl p-3 border border-slate-200">
+        {timeline.events.map((ev, i) => {
+          const cfg = stageConfig[ev.stage] || stageConfig.Sourced;
+          const st  = statusConfig[ev.status];
+          const isLast = i === timeline.events.length - 1;
+          const isActive = ev.status === "active";
+          return (
+            <React.Fragment key={ev.stage}>
+              <button
+                onClick={() => setExpandedIdx(expandedIdx === i ? null : i)}
+                className={`flex flex-col items-center gap-1.5 px-3 py-2 rounded-xl transition-all flex-1 min-w-0 ${expandedIdx === i ? "bg-white shadow-sm border border-slate-200" : "hover:bg-white/60"}`}
+              >
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg transition-all
+                  ${ev.status === "completed" ? `bg-gradient-to-br ${cfg.grad} shadow-sm` : ""}
+                  ${ev.status === "active"    ? `bg-gradient-to-br ${cfg.grad} shadow-md ring-2 ${cfg.ring} ring-offset-1` : ""}
+                  ${ev.status === "upcoming"  ? "bg-slate-200" : ""}
+                  ${ev.status === "skipped"   ? "bg-rose-100" : ""}
+                `}>
+                  <span className={ev.status === "upcoming" ? "grayscale opacity-40" : ""}>{cfg.icon}</span>
+                </div>
+                <div className="text-center">
+                  <div className={`text-[10px] font-bold uppercase tracking-wider truncate max-w-[60px] ${isActive ? "text-indigo-700" : ev.status === "completed" ? "text-slate-700" : ev.status === "skipped" ? "text-rose-500" : "text-slate-400"}`}>
+                    {ev.stage}
+                  </div>
+                  <div className="flex items-center justify-center gap-1 mt-0.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
+                    <span className={`text-[9px] font-semibold ${st.text}`}>{st.label}</span>
+                  </div>
+                </div>
+              </button>
+              {!isLast && (
+                <div className={`w-6 h-0.5 shrink-0 mx-0.5 rounded-full ${
+                  ev.status === "completed" ? "bg-gradient-to-r from-emerald-400 to-emerald-300" :
+                  ev.status === "active"    ? "bg-gradient-to-r from-indigo-400 to-slate-200" :
+                  "bg-slate-200"
+                }`} />
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+
+      {/* Expanded event detail */}
+      {expandedIdx !== null && (() => {
+        const ev  = timeline.events[expandedIdx];
+        const cfg = stageConfig[ev.stage] || stageConfig.Sourced;
+        const st  = statusConfig[ev.status];
+        const sen = sentimentStyle[ev.sentiment] || sentimentStyle.neutral;
+        return (
+          <div className={`rounded-2xl border ${st.border} ${st.bg} overflow-hidden transition-all`}>
+            {/* Detail header */}
+            <div className={`bg-gradient-to-r ${cfg.grad} px-5 py-4 flex items-center justify-between`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-xl">{cfg.icon}</div>
+                <div>
+                  <div className="text-white/70 text-[10px] font-bold uppercase tracking-widest">{ev.stage} stage</div>
+                  <div className="text-white font-bold text-base leading-tight">{ev.status === "upcoming" ? "Upcoming" : ev.status === "skipped" ? "Skipped" : ev.date}</div>
+                  {ev.time !== "—" && <div className="text-white/70 text-xs">{ev.time} · {ev.actor}</div>}
+                </div>
+              </div>
+              <div className={`px-3 py-1.5 rounded-xl bg-white/20 border border-white/30 text-white text-xs font-bold flex items-center gap-1.5`}>
+                <span className={`w-1.5 h-1.5 rounded-full bg-white ${ev.status === "active" ? "animate-pulse" : ""}`} />
+                {st.label}
+              </div>
+            </div>
+
+            {/* AI note */}
+            <div className="px-5 py-4">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shrink-0 mt-0.5">
+                  <Sparkles className="w-4 h-4 text-white" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-[10px] font-bold text-violet-600 uppercase tracking-widest mb-1.5 flex items-center gap-2">
+                    AI-Generated Note
+                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${sen.badge}`}>
+                      {ev.sentiment === "positive" ? "Positive signal" : ev.sentiment === "warning" ? "Watch closely" : ev.sentiment === "negative" ? "Concern flagged" : "Neutral"}
+                    </span>
+                  </div>
+                  {/* Sentiment accent bar */}
+                  <div className={`w-full h-0.5 rounded-full mb-3 ${sen.bar}`} />
+                  <p className="text-sm text-slate-700 leading-relaxed">{ev.aiNote}</p>
+
+                  {/* Tags */}
+                  {ev.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-3">
+                      {ev.tags.map((tag, ti) => (
+                        <span key={ti} className="inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full bg-white border border-slate-200 text-slate-700 shadow-sm">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Actor + timestamp footer */}
+              {ev.actor !== "—" && ev.status !== "upcoming" && (
+                <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center text-[9px] font-bold text-white">
+                      {ev.actor.split("·")[0].trim().split(" ").map(w => w[0]).join("").slice(0, 2)}
+                    </div>
+                    <span className="text-xs text-slate-500">{ev.actor}</span>
+                  </div>
+                  <span className="text-xs text-slate-400 tabular-nums">{ev.date}{ev.time !== "—" ? ` · ${ev.time}` : ""}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Click hint */}
+      {expandedIdx === null && (
+        <div className="text-center text-xs text-slate-400 py-1">
+          ↑ Click any stage to see AI notes, dates, and status details
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ---------- CANDIDATE DETAIL ---------- */
 const CandidateDetail = ({ candidate, onBack, onScreen }) => {
   if (!candidate) return null;
   const recColors = { Proceed: "emerald", Hold: "amber", Reject: "rose" };
 
   return (
     <div className="p-8 space-y-6 max-w-6xl">
-      <button onClick={onBack} className="text-sm text-slate-500 hover:text-slate-900 inline-flex items-center gap-1"><ChevronRight className="w-4 h-4 rotate-180" />Back</button>
+      <button onClick={onBack} className="text-sm text-slate-500 hover:text-slate-900 inline-flex items-center gap-1">
+        <ChevronRight className="w-4 h-4 rotate-180" />Back
+      </button>
 
+      {/* Hero card */}
       <Card className="p-6 relative overflow-hidden">
         <div className="absolute -right-20 -top-20 w-64 h-64 rounded-full bg-gradient-to-br from-indigo-500/10 via-violet-500/10 to-fuchsia-500/10" />
         <div className="relative flex items-start gap-5">
-          <div className={`w-20 h-20 rounded-2xl flex items-center justify-center text-2xl font-bold text-white shrink-0 bg-gradient-to-br ${candidate.match >= 90 ? "from-emerald-500 to-teal-500" : candidate.match >= 80 ? "from-indigo-500 to-violet-500" : "from-amber-500 to-orange-500"} shadow-lg`}>{candidate.name.split(" ").map(n => n[0]).join("")}</div>
+          <div className={`w-20 h-20 rounded-2xl flex items-center justify-center text-2xl font-bold text-white shrink-0 bg-gradient-to-br ${candidate.match >= 90 ? "from-emerald-500 to-teal-500" : candidate.match >= 80 ? "from-indigo-500 to-violet-500" : "from-amber-500 to-orange-500"} shadow-lg`}>
+            {candidate.name.split(" ").map(n => n[0]).join("")}
+          </div>
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{candidate.name}</h1>
             <div className="text-sm text-slate-600 mt-0.5">{candidate.title}</div>
@@ -1577,19 +1841,33 @@ const CandidateDetail = ({ candidate, onBack, onScreen }) => {
         </div>
       </Card>
 
+      {/* ═══ CANDIDATE JOURNEY TIMELINE ═══ */}
+      <Card className="p-6">
+        <CandidateTimeline candidate={candidate} />
+      </Card>
+
+      {/* AI Summary + Skill Match */}
       <div className="grid grid-cols-3 gap-6">
         <Card className="col-span-2 p-6">
-          <div className="flex items-center gap-2 mb-3"><Sparkles className="w-4 h-4 text-violet-600" /><h2 className="font-bold text-slate-900">AI Summary</h2><Pill tone="violet">AI</Pill></div>
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-4 h-4 text-violet-600" />
+            <h2 className="font-bold text-slate-900">AI Summary</h2>
+            <Pill tone="violet">AI</Pill>
+          </div>
           <p className="text-sm text-slate-700 leading-relaxed">{candidate.summary}</p>
 
           <div className="grid grid-cols-2 gap-5 mt-6 pt-6 border-t border-slate-100">
             <div>
               <div className="flex items-center gap-2 mb-3"><ThumbsUp className="w-4 h-4 text-emerald-600" /><h3 className="font-bold text-sm text-slate-900">Strengths</h3></div>
-              <ul className="space-y-2">{candidate.strengths.map((s, i) => (<li key={i} className="flex gap-2 text-sm text-slate-700"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />{s}</li>))}</ul>
+              <ul className="space-y-2">{candidate.strengths.map((s, i) => (
+                <li key={i} className="flex gap-2 text-sm text-slate-700"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />{s}</li>
+              ))}</ul>
             </div>
             <div>
               <div className="flex items-center gap-2 mb-3"><AlertCircle className="w-4 h-4 text-amber-600" /><h3 className="font-bold text-sm text-slate-900">Gaps</h3></div>
-              <ul className="space-y-2">{candidate.gaps.length > 0 ? candidate.gaps.map((g, i) => (<li key={i} className="flex gap-2 text-sm text-slate-700"><X className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />{g}</li>)) : <li className="text-sm text-slate-400 italic">No significant gaps identified</li>}</ul>
+              <ul className="space-y-2">{candidate.gaps.length > 0 ? candidate.gaps.map((g, i) => (
+                <li key={i} className="flex gap-2 text-sm text-slate-700"><X className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />{g}</li>
+              )) : <li className="text-sm text-slate-400 italic">No significant gaps identified</li>}</ul>
             </div>
           </div>
         </Card>
@@ -1601,27 +1879,47 @@ const CandidateDetail = ({ candidate, onBack, onScreen }) => {
               const score = Math.max(60, candidate.match - i * 3 - ((i * 7) % 5));
               return (
                 <div key={s}>
-                  <div className="flex items-center justify-between text-xs mb-1"><span className="font-medium text-slate-700">{s}</span><span className="font-bold text-slate-900 tabular-nums">{score}%</span></div>
-                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden"><div className={`h-full rounded-full ${score >= 90 ? "bg-emerald-500" : score >= 75 ? "bg-indigo-500" : "bg-amber-500"}`} style={{ width: `${score}%` }} /></div>
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="font-medium text-slate-700">{s}</span>
+                    <span className="font-bold text-slate-900 tabular-nums">{score}%</span>
+                  </div>
+                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${score >= 90 ? "bg-emerald-500" : score >= 75 ? "bg-indigo-500" : "bg-amber-500"}`} style={{ width: `${score}%` }} />
+                  </div>
                 </div>
               );
             })}
           </div>
 
           <div className="mt-5 pt-5 border-t border-slate-100 space-y-3">
-            <div className="flex items-center justify-between"><span className="text-xs font-medium text-slate-600">Communication</span><span className="text-sm font-bold text-slate-900">{candidate.commScore}/10</span></div>
-            <div className="flex items-center justify-between"><span className="text-xs font-medium text-slate-600">Technical</span><span className="text-sm font-bold text-slate-900">{candidate.techScore}/10</span></div>
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100"><span className="text-xs font-medium text-slate-600">AI Recommendation</span><Pill tone={recColors[candidate.recommendation]}>{candidate.recommendation === "Proceed" && <ThumbsUp className="w-3 h-3" />}{candidate.recommendation === "Hold" && <Pause className="w-3 h-3" />}{candidate.recommendation === "Reject" && <ThumbsDown className="w-3 h-3" />}{candidate.recommendation}</Pill></div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-600">Communication</span>
+              <span className="text-sm font-bold text-slate-900">{candidate.commScore}/10</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-600">Technical</span>
+              <span className="text-sm font-bold text-slate-900">{candidate.techScore}/10</span>
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              <span className="text-xs font-medium text-slate-600">AI Recommendation</span>
+              <Pill tone={recColors[candidate.recommendation]}>
+                {candidate.recommendation === "Proceed" && <ThumbsUp className="w-3 h-3" />}
+                {candidate.recommendation === "Hold"    && <Pause className="w-3 h-3" />}
+                {candidate.recommendation === "Reject"  && <ThumbsDown className="w-3 h-3" />}
+                {candidate.recommendation}
+              </Pill>
+            </div>
           </div>
 
-          <button onClick={onScreen} className="w-full mt-5 px-4 py-2.5 bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 text-white text-sm font-semibold rounded-xl shadow-lg shadow-violet-500/25 flex items-center justify-center gap-2"><MessageSquare className="w-4 h-4" />Run AI Screening</button>
+          <button onClick={onScreen} className="w-full mt-5 px-4 py-2.5 bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 text-white text-sm font-semibold rounded-xl shadow-lg shadow-violet-500/25 flex items-center justify-center gap-2">
+            <MessageSquare className="w-4 h-4" />Run AI Screening
+          </button>
         </Card>
       </div>
     </div>
   );
 };
 
-/* ---------- SCREENING HUB (sidebar landing page) ---------- */
 const ScreeningHub = ({ candidates, onOpenCandidate, onStartScreening }) => {
   const screened = candidates.filter(c => ["Shortlisted", "Interviewed", "Offered", "Hired"].includes(c.stage));
   const recColors = { Proceed: "emerald", Hold: "amber", Reject: "rose" };
