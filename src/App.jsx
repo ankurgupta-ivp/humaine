@@ -5,7 +5,7 @@ import {
   TrendingUp, Target, Zap, Brain, Send, Bot, Star, MapPin,
   ArrowUpRight, Linkedin, Database, UserPlus,
   Award, AlertCircle, ThumbsUp, ThumbsDown, Pause, GripVertical, Trash2,
-  Edit3, Save, Sliders, Layers, FileText, Clock
+  Edit3, Save, Sliders, Layers, FileText, Clock, ChevronDown
 } from "lucide-react";
 
 /* ============================================================
@@ -106,15 +106,652 @@ const ScoreRing = ({ score, size = 56 }) => {
 };
 
 /* ---------- SIDEBAR ---------- */
-const Sidebar = ({ active, onNav }) => {
-  const items = [
-    { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { key: "requisitions", label: "Requisitions", icon: Briefcase },
-    { key: "jd-generator", label: "JD Generator", icon: Sparkles, badge: "AI" },
-    { key: "sourcing", label: "Sourcing", icon: Users },
-    { key: "screening-hub", label: "Screening", icon: MessageSquare, badge: "AI" },
-    { key: "admin", label: "Admin", icon: Settings },
+
+/* ============================================================
+   PERSONA SYSTEM
+   5 roles — each gets tailored nav, dashboard, and data focus.
+   Stored in React context so every component can read it.
+   ============================================================ */
+const PersonaContext = React.createContext(null);
+const usePersona = () => React.useContext(PersonaContext);
+
+const PERSONAS = {
+  recruiter: {
+    key: "recruiter",
+    label: "Recruiter",
+    avatar: "RC",
+    avatarGrad: "from-indigo-500 to-violet-500",
+    description: "Full pipeline · AI scores · alerts",
+    color: "indigo",
+    navItems: ["dashboard", "requisitions", "jd-generator", "sourcing", "screening-hub"],
+  },
+  hiringManager: {
+    key: "hiringManager",
+    label: "Hiring Manager",
+    avatar: "HM",
+    avatarGrad: "from-violet-500 to-fuchsia-500",
+    description: "Shortlisted candidates · interview feedback",
+    color: "violet",
+    navItems: ["dashboard", "requisitions", "screening-hub"],
+  },
+  deliveryManager: {
+    key: "deliveryManager",
+    label: "Delivery Manager",
+    avatar: "DM",
+    avatarGrad: "from-fuchsia-500 to-pink-500",
+    description: "Time to fill · project risk · skill gaps",
+    color: "fuchsia",
+    navItems: ["dashboard", "requisitions"],
+  },
+  hrLeader: {
+    key: "hrLeader",
+    label: "HR Leader",
+    avatar: "HL",
+    avatarGrad: "from-amber-500 to-orange-500",
+    description: "Funnel metrics · efficiency · source mix",
+    color: "amber",
+    navItems: ["dashboard", "requisitions"],
+  },
+  admin: {
+    key: "admin",
+    label: "Admin",
+    avatar: "AD",
+    avatarGrad: "from-slate-500 to-slate-700",
+    description: "Configuration · system settings",
+    color: "slate",
+    navItems: ["dashboard", "requisitions", "jd-generator", "sourcing", "screening-hub", "admin"],
+  },
+};
+
+const PERSONA_ORDER = ["recruiter", "hiringManager", "deliveryManager", "hrLeader", "admin"];
+
+/* ── persona-specific mock data ── */
+const interviewFeedback = [
+  { candidate: "Priya Raman", round: "System Design", interviewer: "Ankit Sharma", score: 9.0, summary: "Exceptional depth on distributed systems. Designed a multi-tenant audit log with correct WORM semantics and partition strategy. Would hire immediately.", recommend: true },
+  { candidate: "Marcus Webb",  round: "Coding Screen",  interviewer: "Divya Nair",  score: 8.5, summary: "Clean solutions, strong on Big-O reasoning. Slight hesitation on React concurrent features but recovered well when prompted.", recommend: true },
+  { candidate: "Rahul Mehta",  round: "System Design", interviewer: "Ankit Sharma", score: 7.8, summary: "Good instincts on DB indexing. Needs more exposure to event-driven patterns. Recommend proceeding with a culture panel before deciding.", recommend: null },
+];
+
+const projectRiskData = [
+  { project: "Apex Banking Platform",  role: "Senior Full-Stack Engineer", daysOpen: 12, ttfTarget: 30, risk: "medium", coverage: 72, gap: ["TypeScript depth", "Fintech compliance"], openings: 3, filled: 1 },
+  { project: "Helios Migration",        role: "Cloud Solutions Architect",  daysOpen: 21, ttfTarget: 25, risk: "high",   coverage: 45, gap: ["Kubernetes", "Terraform IaC"],       openings: 1, filled: 0 },
+  { project: "Northstar Analytics",     role: "Data Engineer (Snowflake)", daysOpen: 6,  ttfTarget: 35, risk: "low",    coverage: 81, gap: ["dbt advanced"],                         openings: 2, filled: 0 },
+  { project: "Lumen Mobile",            role: "iOS Engineer",              daysOpen: 34, ttfTarget: 30, risk: "high",   coverage: 38, gap: ["SwiftUI", "Core Data", "CI/CD"],        openings: 1, filled: 0 },
+];
+
+const hrMetrics = {
+  avgTTH: 18, ttfBenchmark: 22, offerAccept: 84, costPerHire: 4200,
+  sourceMix: [
+    { name: "LinkedIn",     candidates: 119, hires: 13, rate: 11, cost: 6800 },
+    { name: "Referrals",    candidates:  32, hires: 12, rate: 38, cost: 1200 },
+    { name: "Naukri",       candidates:  47, hires:  3, rate:  6, cost: 3400 },
+    { name: "Internal DB",  candidates:  16, hires:  4, rate: 24, cost:  200 },
+  ],
+  funnelEfficiency: [
+    { stage: "Sourced → Screened",       rate: 60, benchmark: 65 },
+    { stage: "Screened → Shortlisted",   rate: 50, benchmark: 55 },
+    { stage: "Shortlisted → Interviewed",rate: 50, benchmark: 60 },
+    { stage: "Interviewed → Offered",    rate: 29, benchmark: 40 },
+    { stage: "Offered → Hired",          rate: 50, benchmark: 80 },
+  ],
+};
+
+/* ============================================================
+   VIEW-AS TOGGLE — shown in TopBar
+   ============================================================ */
+const ViewAsToggle = ({ persona, onChange }) => {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef(null);
+  const current = PERSONAS[persona];
+
+  React.useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const colorMap = {
+    indigo: "from-indigo-500 to-violet-500",
+    violet: "from-violet-500 to-fuchsia-500",
+    fuchsia: "from-fuchsia-500 to-pink-500",
+    amber: "from-amber-500 to-orange-500",
+    slate: "from-slate-500 to-slate-700",
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/40 transition group"
+      >
+        <div className={`w-6 h-6 rounded-lg bg-gradient-to-br ${colorMap[current.color]} flex items-center justify-center text-[10px] font-bold text-white shrink-0`}>
+          {current.avatar}
+        </div>
+        <div className="text-left hidden sm:block">
+          <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider leading-none">View as</div>
+          <div className="text-sm font-bold text-slate-800 leading-tight">{current.label}</div>
+        </div>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/60 z-50 overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Switch persona</div>
+            <div className="text-xs text-slate-400 mt-0.5">UI adapts to show relevant data</div>
+          </div>
+          <div className="p-2">
+            {PERSONA_ORDER.map((key) => {
+              const p = PERSONAS[key];
+              const isActive = key === persona;
+              return (
+                <button
+                  key={key}
+                  onClick={() => { onChange(key); setOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition text-left ${isActive ? "bg-indigo-50 border border-indigo-200" : "hover:bg-slate-50"}`}
+                >
+                  <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${colorMap[p.color]} flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-sm`}>
+                    {p.avatar}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm text-slate-900">{p.label}</span>
+                      {isActive && <Pill tone="indigo">Active</Pill>}
+                    </div>
+                    <div className="text-xs text-slate-500 truncate">{p.description}</div>
+                  </div>
+                  {isActive && <Check className="w-4 h-4 text-indigo-600 shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ============================================================
+   PERSONA BANNER — slim strip under topbar showing current context
+   ============================================================ */
+const PersonaBanner = ({ persona }) => {
+  const p = PERSONAS[persona];
+  if (persona === "recruiter") return null; // recruiter = default, no banner needed
+  const banners = {
+    hiringManager:  { bg: "bg-violet-600",  text: "You're viewing as Hiring Manager — showing shortlisted candidates & interview feedback only." },
+    deliveryManager:{ bg: "bg-fuchsia-600", text: "You're viewing as Delivery Manager — showing project risk, time-to-fill, and skill coverage." },
+    hrLeader:       { bg: "bg-amber-500",   text: "You're viewing as HR Leader — showing funnel metrics, source effectiveness, and hiring efficiency." },
+    admin:          { bg: "bg-slate-700",   text: "You're viewing as Admin — all modules unlocked including system configuration." },
+  };
+  const b = banners[persona];
+  if (!b) return null;
+  return (
+    <div className={`${b.bg} text-white text-xs font-semibold px-8 py-2 flex items-center gap-2`}>
+      <span className="opacity-75">👤</span> {b.text}
+    </div>
+  );
+};
+
+/* ============================================================
+   PERSONA DASHBOARDS
+   ============================================================ */
+
+/* ── RECRUITER DASHBOARD (existing Dashboard, persona-aware alerts) ── */
+const RecruiterDashboard = ({ requisitions, candidates, onOpenReq, onNav }) => {
+  const totals = useMemo(() => requisitions.reduce((a, r) => ({ sourced: a.sourced + r.sourced, screened: a.screened + r.screened, shortlisted: a.shortlisted + r.shortlisted, interviewed: a.interviewed + r.interviewed, offered: a.offered + r.offered, hired: a.hired + r.hired }), { sourced: 0, screened: 0, shortlisted: 0, interviewed: 0, offered: 0, hired: 0 }), [requisitions]);
+
+  const alerts = [
+    { type: "risk",   icon: "⚠️", title: "Nina Patel offer ageing", body: "Offer pending 3+ days — competing offer likely. Follow up today.", action: "View Candidate" },
+    { type: "risk",   icon: "⚠️", title: "iOS req stalled 34 days", body: "0 stage movements in 9 days. Req at risk — consider JD broadening.", action: "View Req" },
+    { type: "info",   icon: "💡", title: "Priya Raman — 94% match", body: "Top candidate in Interviewed stage. Schedule offer review this week.", action: "View Candidate" },
+    { type: "action", icon: "✅", title: "Marcus Webb competing offer", body: "Candidate signalled another offer on the table. Move now or lose.", action: "Fast-track" },
   ];
+
+  const metrics = [
+    { label: "Open Requisitions",  value: requisitions.filter(r => r.status === "Active").length, sub: "+2 this week",        tone: "indigo", icon: Briefcase },
+    { label: "Active Candidates",  value: totals.sourced + totals.screened + totals.shortlisted + totals.interviewed, sub: "Across all roles", tone: "violet", icon: Users },
+    { label: "Avg Time to Hire",   value: "18d",  sub: "↓ 4d vs last month", tone: "emerald", icon: Clock },
+    { label: "Offer Acceptance",   value: "84%",  sub: "↑ 6% vs Q3",         tone: "amber",   icon: Award },
+  ];
+  const toneGrad = { indigo: "from-indigo-500 to-blue-500", violet: "from-violet-500 to-fuchsia-500", emerald: "from-emerald-500 to-teal-500", amber: "from-amber-500 to-orange-500" };
+
+  return (
+    <div className="p-8 space-y-6">
+      <div className="flex items-end justify-between">
+        <div>
+          <div className="text-xs font-semibold text-indigo-600 uppercase tracking-widest mb-1">Welcome back, Neha · Recruiter View</div>
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Here's what's moving today.</h1>
+        </div>
+        <GradientButton icon={Plus} onClick={() => onNav("jd-generator")}>New Requisition</GradientButton>
+      </div>
+
+      {/* Alerts strip */}
+      <div className="grid grid-cols-4 gap-3">
+        {alerts.map((a, i) => (
+          <div key={i} className={`p-4 rounded-xl border-l-4 bg-white border ${a.type === "risk" ? "border-l-rose-400 border-rose-100" : a.type === "action" ? "border-l-amber-400 border-amber-100" : "border-l-indigo-400 border-indigo-100"}`}>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-base">{a.icon}</span>
+              <span className={`text-[10px] font-bold uppercase tracking-wider ${a.type === "risk" ? "text-rose-600" : a.type === "action" ? "text-amber-600" : "text-indigo-600"}`}>{a.type === "risk" ? "Alert" : a.type === "action" ? "Urgent" : "Insight"}</span>
+            </div>
+            <div className="font-semibold text-sm text-slate-900 mb-1">{a.title}</div>
+            <div className="text-xs text-slate-600 leading-relaxed">{a.body}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-4 gap-4">
+        {metrics.map((m) => {
+          const Icon = m.icon;
+          return (
+            <Card key={m.label} className="p-5 relative overflow-hidden">
+              <div className={`absolute -right-6 -top-6 w-24 h-24 rounded-full opacity-10 bg-gradient-to-br ${toneGrad[m.tone]}`} />
+              <div className="relative">
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 bg-gradient-to-br ${toneGrad[m.tone]}`}><Icon className="w-4 h-4 text-white" /></div>
+                <div className="text-xs text-slate-500 font-medium">{m.label}</div>
+                <div className="text-3xl font-bold text-slate-900 mt-1 tracking-tight">{m.value}</div>
+                <div className="text-xs text-slate-500 mt-1">{m.sub}</div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      <div className="grid grid-cols-3 gap-6">
+        <Card className="col-span-2 p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-lg font-bold text-slate-900">Active Requisitions</h2>
+            <button onClick={() => onNav("requisitions")} className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 inline-flex items-center gap-1">View all<ArrowUpRight className="w-3 h-3" /></button>
+          </div>
+          <div className="space-y-2">
+            {requisitions.slice(0, 4).map((r) => (
+              <button key={r.id} onClick={() => onOpenReq(r.id)} className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition group text-left">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <div className="font-semibold text-slate-900 text-sm">{r.title}</div>
+                    <Pill tone={r.priority === "Critical" ? "rose" : r.priority === "High" ? "amber" : "default"}>{r.priority}</Pill>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5">{r.project} · {r.daysOpen} days open</div>
+                </div>
+                <div className="flex items-center gap-6 text-xs">
+                  <div className="text-center"><div className="font-bold text-slate-900">{r.sourced}</div><div className="text-slate-400">sourced</div></div>
+                  <div className="text-center"><div className="font-bold text-slate-900">{r.interviewed}</div><div className="text-slate-400">interviewed</div></div>
+                  <div className="text-center"><div className="font-bold text-emerald-600">{r.hired}/{r.openings}</div><div className="text-slate-400">hired</div></div>
+                  <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 transition" />
+                </div>
+              </button>
+            ))}
+          </div>
+        </Card>
+        <Card className="p-6">
+          <h2 className="text-lg font-bold text-slate-900 mb-1">Hiring Funnel</h2>
+          <div className="text-xs text-slate-500 mb-5">All active reqs · last 30 days</div>
+          <div className="space-y-2.5">
+            {stageOrder.map((stage, i) => {
+              const val = totals[stage.toLowerCase()];
+              const pct = (val / Math.max(1, totals.sourced)) * 100;
+              const colors = ["from-indigo-500 to-indigo-400","from-violet-500 to-violet-400","from-fuchsia-500 to-fuchsia-400","from-pink-500 to-pink-400","from-amber-500 to-amber-400","from-emerald-500 to-emerald-400"];
+              return (
+                <div key={stage}>
+                  <div className="flex items-center justify-between text-xs mb-1"><span className="font-medium text-slate-700">{stage}</span><span className="font-bold text-slate-900 tabular-nums">{val}</span></div>
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className={`h-full bg-gradient-to-r ${colors[i]} rounded-full`} style={{ width: `${pct}%` }} /></div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+/* ── HIRING MANAGER DASHBOARD ── */
+const HiringManagerDashboard = ({ candidates, onOpenReq, onNav }) => {
+  const shortlisted = candidates.filter(c => ["Shortlisted","Interviewed","Offered","Hired"].includes(c.stage));
+  const recColor = { Proceed: "emerald", Hold: "amber", Reject: "rose" };
+  return (
+    <div className="p-8 space-y-6">
+      <div>
+        <div className="text-xs font-semibold text-violet-600 uppercase tracking-widest mb-1">Hiring Manager View</div>
+        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Your shortlisted candidates</h1>
+        <div className="text-sm text-slate-500 mt-1">Showing candidates at Shortlisted stage and beyond · {shortlisted.length} in scope</div>
+      </div>
+
+      {/* Top 3 stat cards */}
+      <div className="grid grid-cols-3 gap-4">
+        {[
+          { label: "Ready for Your Review", value: candidates.filter(c => c.stage === "Shortlisted").length, tone: "from-violet-500 to-fuchsia-500", icon: Users },
+          { label: "Interviews Scheduled",  value: candidates.filter(c => c.stage === "Interviewed").length,  tone: "from-fuchsia-500 to-pink-500", icon: MessageSquare },
+          { label: "Awaiting Offer Sign-off",value: candidates.filter(c => c.stage === "Offered").length,   tone: "from-amber-500 to-orange-500", icon: Award },
+        ].map((m) => {
+          const Icon = m.icon;
+          return (
+            <Card key={m.label} className="p-5 relative overflow-hidden">
+              <div className={`absolute -right-4 -top-4 w-20 h-20 rounded-full opacity-10 bg-gradient-to-br ${m.tone}`} />
+              <div className="relative flex items-center gap-4">
+                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${m.tone} flex items-center justify-center shrink-0`}><Icon className="w-5 h-5 text-white" /></div>
+                <div>
+                  <div className="text-xs text-slate-500 font-medium">{m.label}</div>
+                  <div className="text-3xl font-bold text-slate-900 tracking-tight">{m.value}</div>
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Interview feedback cards */}
+      <Card className="p-6">
+        <div className="flex items-center gap-2 mb-5"><MessageSquare className="w-4 h-4 text-violet-600" /><h2 className="text-lg font-bold text-slate-900">Interview Feedback</h2><Pill tone="violet">Latest rounds</Pill></div>
+        <div className="space-y-3">
+          {interviewFeedback.map((fb, i) => (
+            <div key={i} className="p-4 rounded-xl border border-slate-100 hover:border-violet-200 transition">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-sm font-bold text-white shrink-0">
+                    {fb.candidate.split(" ").map(n => n[0]).join("")}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-sm text-slate-900">{fb.candidate}</span>
+                      <Pill tone="violet">{fb.round}</Pill>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-0.5">Interviewer: {fb.interviewer} · Score: <strong>{fb.score}/10</strong></div>
+                    <div className="text-sm text-slate-700 mt-2 leading-relaxed">{fb.summary}</div>
+                  </div>
+                </div>
+                <div className="shrink-0">
+                  {fb.recommend === true  && <Pill tone="emerald"><ThumbsUp className="w-3 h-3" />Recommend</Pill>}
+                  {fb.recommend === false && <Pill tone="rose"><ThumbsDown className="w-3 h-3" />Decline</Pill>}
+                  {fb.recommend === null  && <Pill tone="amber"><Pause className="w-3 h-3" />Hold</Pill>}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* Shortlisted candidate summaries */}
+      <Card className="p-6">
+        <h2 className="text-lg font-bold text-slate-900 mb-5">Candidate Summaries</h2>
+        <div className="space-y-3">
+          {shortlisted.slice(0, 5).map((c) => (
+            <div key={c.id} className="p-4 rounded-xl border border-slate-100 hover:border-violet-200 hover:bg-violet-50/20 transition">
+              <div className="flex items-start gap-3">
+                <div className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 bg-gradient-to-br ${c.match >= 90 ? "from-emerald-500 to-teal-500" : "from-violet-500 to-fuchsia-500"}`}>
+                  {c.name.split(" ").map(n => n[0]).join("")}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-sm text-slate-900">{c.name}</span>
+                    <Pill tone={c.stage === "Hired" ? "emerald" : c.stage === "Offered" ? "amber" : "violet"}>{c.stage}</Pill>
+                    <Pill tone={recColor[c.recommendation] || "default"}>{c.recommendation}</Pill>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5">{c.exp} yrs · {c.location}</div>
+                  <div className="text-sm text-slate-700 mt-1.5 leading-relaxed line-clamp-2">{c.summary}</div>
+                </div>
+                <div className="text-center shrink-0">
+                  <ScoreRing score={c.match} size={48} />
+                  <div className="text-[10px] text-slate-400 mt-1">AI Fit</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+/* ── DELIVERY MANAGER DASHBOARD ── */
+const DeliveryManagerDashboard = () => {
+  const riskColor = { high: "rose", medium: "amber", low: "emerald" };
+  const riskBg    = { high: "bg-rose-50 border-rose-200", medium: "bg-amber-50 border-amber-200", low: "bg-emerald-50 border-emerald-200" };
+  const riskLabel = { high: "text-rose-700", medium: "text-amber-700", low: "text-emerald-700" };
+  const riskDot   = { high: "bg-rose-500", medium: "bg-amber-500", low: "bg-emerald-500" };
+
+  return (
+    <div className="p-8 space-y-6">
+      <div>
+        <div className="text-xs font-semibold text-fuchsia-600 uppercase tracking-widest mb-1">Delivery Manager View</div>
+        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Project staffing readiness</h1>
+        <div className="text-sm text-slate-500 mt-1">Time to fill · skill coverage · project risk across all active engagements</div>
+      </div>
+
+      {/* Summary metrics */}
+      <div className="grid grid-cols-4 gap-4">
+        {[
+          { label: "Roles at Risk",         value: projectRiskData.filter(p => p.risk === "high").length,   sub: "Overdue or blocked",     color: "from-rose-500 to-pink-500",       icon: AlertCircle },
+          { label: "Avg Days Open",          value: `${Math.round(projectRiskData.reduce((a,p)=>a+p.daysOpen,0)/projectRiskData.length)}d`, sub: "vs 22d target", color: "from-fuchsia-500 to-violet-500", icon: Clock },
+          { label: "Skill Coverage Avg",     value: `${Math.round(projectRiskData.reduce((a,p)=>a+p.coverage,0)/projectRiskData.length)}%`, sub: "Across open roles", color: "from-indigo-500 to-blue-500",  icon: Target },
+          { label: "Openings Unfilled",      value: projectRiskData.reduce((a,p)=>a+(p.openings-p.filled),0), sub: "Total positions",       color: "from-amber-500 to-orange-500",    icon: Briefcase },
+        ].map((m) => {
+          const Icon = m.icon;
+          return (
+            <Card key={m.label} className="p-5 relative overflow-hidden">
+              <div className={`absolute -right-4 -top-4 w-20 h-20 rounded-full opacity-10 bg-gradient-to-br ${m.color}`} />
+              <div className="relative">
+                <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${m.color} flex items-center justify-center mb-3`}><Icon className="w-4 h-4 text-white" /></div>
+                <div className="text-xs text-slate-500 font-medium">{m.label}</div>
+                <div className="text-3xl font-bold text-slate-900 mt-1 tracking-tight">{m.value}</div>
+                <div className="text-xs text-slate-500 mt-1">{m.sub}</div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Project risk cards */}
+      <div className="space-y-4">
+        <h2 className="text-lg font-bold text-slate-900">Project Readiness by Role</h2>
+        {projectRiskData.map((p, i) => {
+          const ttfPct = Math.min(100, (p.daysOpen / p.ttfTarget) * 100);
+          return (
+            <Card key={i} className={`p-5 border ${p.risk === "high" ? "border-rose-200 shadow-rose-100 shadow-md" : "border-slate-200"}`}>
+              <div className="flex items-start gap-4">
+                {/* Risk badge */}
+                <div className={`px-3 py-1.5 rounded-xl border text-xs font-bold uppercase tracking-wider shrink-0 ${riskBg[p.risk]}`}>
+                  <span className={`flex items-center gap-1.5 ${riskLabel[p.risk]}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${riskDot[p.risk]} ${p.risk === "high" ? "animate-pulse" : ""}`} />
+                    {p.risk} risk
+                  </span>
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div>
+                      <div className="font-bold text-slate-900">{p.project}</div>
+                      <div className="text-sm text-slate-500 mt-0.5">{p.role} · {p.openings - p.filled} of {p.openings} opening{p.openings > 1 ? "s" : ""} unfilled</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-xs text-slate-500">Days open vs target</div>
+                      <div className={`text-xl font-bold tabular-nums ${p.daysOpen > p.ttfTarget ? "text-rose-600" : "text-slate-900"}`}>{p.daysOpen}d <span className="text-sm font-normal text-slate-400">/ {p.ttfTarget}d</span></div>
+                    </div>
+                  </div>
+
+                  {/* TTF progress bar */}
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="text-slate-500">Time to fill progress</span>
+                      <span className={`font-bold ${ttfPct >= 100 ? "text-rose-600" : ttfPct >= 70 ? "text-amber-600" : "text-emerald-600"}`}>{Math.round(ttfPct)}% of target used</span>
+                    </div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full transition-all ${ttfPct >= 100 ? "bg-rose-500" : ttfPct >= 70 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${Math.min(ttfPct, 100)}%` }} />
+                    </div>
+                  </div>
+
+                  {/* Skill coverage */}
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="text-slate-500">Skill coverage</span>
+                      <span className={`font-bold ${p.coverage < 50 ? "text-rose-600" : p.coverage < 75 ? "text-amber-600" : "text-emerald-600"}`}>{p.coverage}%</span>
+                    </div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${p.coverage < 50 ? "bg-rose-400" : p.coverage < 75 ? "bg-amber-400" : "bg-emerald-400"}`} style={{ width: `${p.coverage}%` }} />
+                    </div>
+                  </div>
+
+                  {/* Skill gaps */}
+                  <div className="mt-3 flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-slate-500 font-medium">Gaps:</span>
+                    {p.gap.map(g => <Pill key={g} tone="rose">{g}</Pill>)}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+/* ── HR LEADER DASHBOARD ── */
+const HRLeaderDashboard = () => {
+  return (
+    <div className="p-8 space-y-6">
+      <div>
+        <div className="text-xs font-semibold text-amber-600 uppercase tracking-widest mb-1">HR Leader View</div>
+        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Hiring performance overview</h1>
+        <div className="text-sm text-slate-500 mt-1">Funnel efficiency · source ROI · hiring health across all requisitions</div>
+      </div>
+
+      {/* Top KPIs */}
+      <div className="grid grid-cols-4 gap-4">
+        {[
+          { label: "Avg Time to Hire",   value: `${hrMetrics.avgTTH}d`,  sub: `vs ${hrMetrics.ttfBenchmark}d benchmark`, tone: "emerald", icon: Clock,   good: true  },
+          { label: "Offer Acceptance",   value: `${hrMetrics.offerAccept}%`, sub: "↑ 6% vs Q3",                 tone: "indigo",  icon: Award,  good: true  },
+          { label: "Cost per Hire",      value: `$${hrMetrics.costPerHire.toLocaleString()}`, sub: "↓ $800 vs last quarter", tone: "violet",  icon: TrendingUp, good: true },
+          { label: "Interview→Offer",    value: "29%", sub: "Below 40% benchmark ⚠",          tone: "amber",   icon: AlertCircle, good: false },
+        ].map((m) => {
+          const Icon = m.icon;
+          const grad = { emerald: "from-emerald-500 to-teal-500", indigo: "from-indigo-500 to-blue-500", violet: "from-violet-500 to-fuchsia-500", amber: "from-amber-500 to-orange-500" };
+          return (
+            <Card key={m.label} className={`p-5 relative overflow-hidden ${!m.good ? "border-amber-200" : ""}`}>
+              <div className={`absolute -right-6 -top-6 w-24 h-24 rounded-full opacity-10 bg-gradient-to-br ${grad[m.tone]}`} />
+              <div className="relative">
+                <div className={`w-9 h-9 rounded-lg mb-3 bg-gradient-to-br ${grad[m.tone]} flex items-center justify-center`}><Icon className="w-4 h-4 text-white" /></div>
+                <div className="text-xs text-slate-500 font-medium">{m.label}</div>
+                <div className="text-3xl font-bold text-slate-900 mt-1 tracking-tight">{m.value}</div>
+                <div className={`text-xs mt-1 ${m.good ? "text-slate-500" : "text-amber-600 font-semibold"}`}>{m.sub}</div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      <div className="grid grid-cols-2 gap-6">
+        {/* Funnel efficiency */}
+        <Card className="p-6">
+          <h2 className="text-lg font-bold text-slate-900 mb-5">Funnel Efficiency</h2>
+          <div className="space-y-4">
+            {hrMetrics.funnelEfficiency.map((f, i) => {
+              const delta = f.rate - f.benchmark;
+              const isBelow = delta < 0;
+              return (
+                <div key={i}>
+                  <div className="flex items-center justify-between text-sm mb-1.5">
+                    <span className="font-medium text-slate-700">{f.stage}</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`font-bold tabular-nums ${isBelow ? "text-rose-600" : "text-emerald-600"}`}>{f.rate}%</span>
+                      <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${isBelow ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"}`}>{isBelow ? "" : "+"}{delta}% vs benchmark</span>
+                    </div>
+                  </div>
+                  <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden relative">
+                    <div className={`h-full rounded-full ${isBelow ? "bg-rose-400" : "bg-emerald-400"}`} style={{ width: `${f.rate}%` }} />
+                    {/* Benchmark marker */}
+                    <div className="absolute top-0 h-full border-l-2 border-slate-400 border-dashed opacity-50" style={{ left: `${f.benchmark}%` }} />
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Benchmark: {f.benchmark}%</div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+
+        {/* Source effectiveness */}
+        <Card className="p-6">
+          <h2 className="text-lg font-bold text-slate-900 mb-5">Source Effectiveness</h2>
+          <div className="space-y-3">
+            {hrMetrics.sourceMix.map((s, i) => {
+              const colors = ["bg-sky-500","bg-emerald-500","bg-amber-500","bg-violet-500"];
+              const isTop = s.rate === Math.max(...hrMetrics.sourceMix.map(x => x.rate));
+              return (
+                <div key={i} className={`p-3 rounded-xl border transition ${isTop ? "border-emerald-200 bg-emerald-50/30" : "border-slate-100"}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2.5 h-2.5 rounded-full ${colors[i]}`} />
+                      <span className="font-semibold text-sm text-slate-900">{s.name}</span>
+                      {isTop && <Pill tone="emerald">Top performer</Pill>}
+                    </div>
+                    <span className="text-xs text-slate-500">{s.candidates} candidates</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div><div className="text-lg font-bold text-slate-900 tabular-nums">{s.hires}</div><div className="text-[10px] text-slate-400">Hires</div></div>
+                    <div><div className={`text-lg font-bold tabular-nums ${s.rate >= 30 ? "text-emerald-600" : s.rate >= 15 ? "text-amber-600" : "text-rose-500"}`}>{s.rate}%</div><div className="text-[10px] text-slate-400">Conv. rate</div></div>
+                    <div><div className="text-lg font-bold text-slate-900 tabular-nums">${s.cost.toLocaleString()}</div><div className="text-[10px] text-slate-400">Cost / hire</div></div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+/* ── ADMIN DASHBOARD ── */
+const AdminDashboard = ({ onNav }) => (
+  <div className="p-8 space-y-6">
+    <div>
+      <div className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1">Admin View</div>
+      <h1 className="text-3xl font-bold text-slate-900 tracking-tight">System configuration</h1>
+      <div className="text-sm text-slate-500 mt-1">All modules and settings are unlocked in Admin mode.</div>
+    </div>
+    <div className="grid grid-cols-2 gap-4">
+      {[
+        { title: "Hiring Stages",     desc: "Add, remove, or reorder pipeline stages used across all requisitions.",        icon: Layers,    action: () => onNav("admin"), cta: "Configure stages" },
+        { title: "Scoring Weights",   desc: "Tune how AI calculates fit scores — skills vs experience vs communication.",    icon: Sliders,   action: () => onNav("admin"), cta: "Adjust weights" },
+        { title: "Sourcing Channels", desc: "Enable or disable LinkedIn, Naukri, Referrals, Internal DB and others.",       icon: Database,  action: () => onNav("admin"), cta: "Manage channels" },
+        { title: "JD Templates",      desc: "Create and manage reusable job description templates for common roles.",        icon: FileText,  action: () => onNav("admin"), cta: "Edit templates" },
+        { title: "AI Credit Usage",   desc: "2,847 / 5,000 credits used this month. Reset on June 1.",                     icon: Zap,       action: () => {},             cta: "View usage" },
+        { title: "All Modules",       desc: "Recruiter, Sourcing, Screening, JD Generator all accessible in Admin mode.",   icon: LayoutDashboard, action: () => onNav("dashboard"), cta: "Go to recruiter view" },
+      ].map((item, i) => {
+        const Icon = item.icon;
+        return (
+          <Card key={i} className="p-5 hover:border-slate-300 transition cursor-pointer" onClick={item.action}>
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0"><Icon className="w-5 h-5 text-slate-600" /></div>
+              <div className="flex-1">
+                <div className="font-bold text-slate-900">{item.title}</div>
+                <div className="text-sm text-slate-500 mt-1 leading-relaxed">{item.desc}</div>
+                <button className="mt-3 text-xs font-bold text-indigo-600 hover:text-indigo-700 inline-flex items-center gap-1">{item.cta}<ChevronRight className="w-3 h-3" /></button>
+              </div>
+            </div>
+          </Card>
+        );
+      })}
+    </div>
+  </div>
+);
+
+/* ============================================================
+   PERSONA-AWARE SIDEBAR — filters nav items by persona
+   ============================================================ */
+const Sidebar = ({ active, onNav, persona }) => {
+  const ALL_ITEMS = [
+    { key: "dashboard",     label: "Dashboard",   icon: LayoutDashboard },
+    { key: "requisitions",  label: "Requisitions",icon: Briefcase },
+    { key: "jd-generator",  label: "JD Generator",icon: Sparkles,      badge: "AI" },
+    { key: "sourcing",      label: "Sourcing",    icon: Users },
+    { key: "screening-hub", label: "Screening",   icon: MessageSquare, badge: "AI" },
+    { key: "admin",         label: "Admin",       icon: Settings },
+  ];
+  const allowed = PERSONAS[persona]?.navItems || ALL_ITEMS.map(i => i.key);
+  const items = ALL_ITEMS.filter(it => allowed.includes(it.key));
+  const colorMap = { indigo: "from-indigo-500 to-violet-500", violet: "from-violet-500 to-fuchsia-500", fuchsia: "from-fuchsia-500 to-pink-500", amber: "from-amber-500 to-orange-500", slate: "from-slate-500 to-slate-700" };
+  const p = PERSONAS[persona];
+
   return (
     <aside className="w-64 bg-slate-950 text-slate-300 flex flex-col h-screen sticky top-0">
       <div className="px-5 py-5 border-b border-slate-800/80">
@@ -128,7 +765,19 @@ const Sidebar = ({ active, onNav }) => {
           </div>
         </div>
       </div>
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
+
+      {/* Active persona chip */}
+      <div className="px-3 pt-3">
+        <div className={`flex items-center gap-2.5 px-3 py-2 rounded-xl bg-gradient-to-r ${colorMap[p.color]} bg-opacity-10 border border-white/10`}>
+          <div className={`w-6 h-6 rounded-lg bg-gradient-to-br ${colorMap[p.color]} flex items-center justify-center text-[9px] font-bold text-white shrink-0`}>{p.avatar}</div>
+          <div>
+            <div className="text-[9px] text-white/50 uppercase tracking-widest font-bold">Viewing as</div>
+            <div className="text-xs font-bold text-white leading-tight">{p.label}</div>
+          </div>
+        </div>
+      </div>
+
+      <nav className="flex-1 px-3 py-3 space-y-0.5">
         {items.map((it) => {
           const Icon = it.icon;
           const isActive = active === it.key;
@@ -140,6 +789,7 @@ const Sidebar = ({ active, onNav }) => {
           );
         })}
       </nav>
+
       <div className="p-3 border-t border-slate-800/80">
         <div className="bg-gradient-to-br from-indigo-600/20 to-fuchsia-600/20 border border-indigo-500/30 rounded-xl p-3">
           <div className="flex items-center gap-2 mb-1"><Zap className="w-4 h-4 text-amber-400" /><span className="text-xs font-semibold text-white">AI credits</span></div>
@@ -151,16 +801,19 @@ const Sidebar = ({ active, onNav }) => {
   );
 };
 
-/* ---------- TOPBAR ---------- */
-const TopBar = ({ onCopilot }) => (
+/* ============================================================
+   PERSONA-AWARE TOPBAR — includes View As toggle
+   ============================================================ */
+const TopBar = ({ onCopilot, persona, onPersonaChange }) => (
   <div className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between px-8 sticky top-0 z-30">
-    <div className="flex items-center gap-3 flex-1 max-w-xl">
+    <div className="flex items-center gap-3 flex-1 max-w-md">
       <div className="relative flex-1">
         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input placeholder="Search candidates, requisitions, projects..." className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition" />
+        <input placeholder="Search candidates, requisitions..." className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition" />
       </div>
     </div>
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-3">
+      <ViewAsToggle persona={persona} onChange={onPersonaChange} />
       <button onClick={onCopilot} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 text-white text-sm font-semibold shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition">
         <Bot className="w-4 h-4" />Copilot
       </button>
@@ -187,7 +840,7 @@ const Dashboard = ({ requisitions, onOpenReq, onNav }) => {
     <div className="p-8 space-y-6">
       <div className="flex items-end justify-between">
         <div>
-          <div className="text-xs font-semibold text-indigo-600 uppercase tracking-widest mb-1">Welcome back, Riya</div>
+          <div className="text-xs font-semibold text-indigo-600 uppercase tracking-widest mb-1">Welcome back, Neha</div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Here's what's moving today.</h1>
         </div>
         <GradientButton icon={Plus} onClick={() => onNav("jd-generator")}>New Requisition</GradientButton>
@@ -1255,7 +1908,7 @@ const Admin = () => {
 
 /* ---------- COPILOT DRAWER ---------- */
 const CopilotDrawer = ({ open, onClose }) => {
-  const [messages, setMessages] = useState([{ role: "ai", text: "Hi Riya — I'm your recruiting copilot. Ask about candidates, funnels, or sourcing performance." }]);
+  const [messages, setMessages] = useState([{ role: "ai", text: "Hi Neha — I'm your recruiting copilot. Ask about candidates, funnels, or sourcing performance." }]);
   const [input, setInput] = useState("");
 
   const send = (q) => {
@@ -1301,8 +1954,12 @@ const CopilotDrawer = ({ open, onClose }) => {
 };
 
 /* ---------- MAIN APP ---------- */
+/* ============================================================
+   MAIN APP — persona state wires through everything
+   ============================================================ */
 export default function HumAIne() {
   const [view, setView] = useState({ name: "dashboard" });
+  const [persona, setPersona] = useState("recruiter");
   const [requisitions] = useState(seedRequisitions);
   const [candidates, setCandidates] = useState(seedCandidates);
   const [copilotOpen, setCopilotOpen] = useState(false);
@@ -1313,32 +1970,52 @@ export default function HumAIne() {
 
   const nav = (name) => setView({ name });
 
+  // When persona changes, navigate to dashboard and reset view
+  const handlePersonaChange = (newPersona) => {
+    setPersona(newPersona);
+    setView({ name: "dashboard" });
+  };
+
   const sidebarActive =
-    view.name === "req-detail" ? "requisitions" :
+    view.name === "req-detail"   ? "requisitions" :
     view.name === "candidate" && view.from !== "screening-hub" ? "sourcing" :
-    view.name === "candidate" && view.from === "screening-hub" ? "screening" :
-    view.name === "screening" ? "screening" :
+    view.name === "candidate" && view.from === "screening-hub" ? "screening-hub" :
+    view.name === "screening"    ? "screening-hub" :
     view.name;
 
+  // Persona-specific dashboard
+  const renderDashboard = () => {
+    switch (persona) {
+      case "hiringManager":  return <HiringManagerDashboard  candidates={candidates} onOpenReq={(id) => setView({ name: "req-detail", reqId: id })} onNav={nav} />;
+      case "deliveryManager":return <DeliveryManagerDashboard />;
+      case "hrLeader":       return <HRLeaderDashboard />;
+      case "admin":          return <AdminDashboard onNav={nav} />;
+      default:               return <RecruiterDashboard requisitions={requisitions} candidates={candidates} onOpenReq={(id) => setView({ name: "req-detail", reqId: id })} onNav={nav} />;
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 flex" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-      <Sidebar active={sidebarActive} onNav={nav} />
-      <main className="flex-1 flex flex-col min-w-0">
-        <TopBar onCopilot={() => setCopilotOpen(true)} />
-        <div className="flex-1">
-          {view.name === "dashboard" && <Dashboard requisitions={requisitions} onOpenReq={(id) => setView({ name: "req-detail", reqId: id })} onNav={nav} />}
-          {view.name === "requisitions" && <RequisitionsList requisitions={requisitions} onOpen={(id) => setView({ name: "req-detail", reqId: id })} onNav={nav} />}
-          {view.name === "req-detail" && currentReq && <RequisitionDetail req={currentReq} candidates={candidates} onBack={() => nav("requisitions")} onUpdateCandidate={updateCandidate} onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "req-detail", reqId: view.reqId })} />}
-          {view.name === "jd-generator" && <JDGenerator onCreate={() => nav("requisitions")} />}
-          {view.name === "sourcing" && <Sourcing requisitions={requisitions} candidates={candidates} onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "sourcing" })} />}
-          {view.name === "screening-hub" && <ScreeningHub candidates={candidates} onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "screening-hub" })} onStartScreening={(id) => setView({ name: "screening", candidateId: id, from: "screening-hub" })} />}
-          {view.name === "candidate" && currentCandidate && <CandidateDetail candidate={currentCandidate} onBack={() => { if (view.from === "req-detail") setView({ name: "req-detail", reqId: view.reqId }); else if (view.from === "screening-hub") nav("screening-hub"); else nav("sourcing"); }} onScreen={() => setView({ name: "screening", candidateId: view.candidateId, from: view.from, reqId: view.reqId })} />}
-          {view.name === "screening" && currentCandidate && <Screening candidate={currentCandidate} onBack={() => { if (view.from === "screening-hub") nav("screening-hub"); else setView({ name: "candidate", candidateId: view.candidateId, from: view.from, reqId: view.reqId }); }} />}
-          {view.name === "admin" && <Admin />}
-        </div>
-      </main>
-      <CopilotDrawer open={copilotOpen} onClose={() => setCopilotOpen(false)} />
-    </div>
+    <PersonaContext.Provider value={persona}>
+      <div className="min-h-screen bg-slate-50 flex" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+        <Sidebar active={sidebarActive} onNav={nav} persona={persona} />
+        <main className="flex-1 flex flex-col min-w-0">
+          <TopBar onCopilot={() => setCopilotOpen(true)} persona={persona} onPersonaChange={handlePersonaChange} />
+          <PersonaBanner persona={persona} />
+          <div className="flex-1">
+            {view.name === "dashboard"    && renderDashboard()}
+            {view.name === "requisitions" && <RequisitionsList requisitions={requisitions} onOpen={(id) => setView({ name: "req-detail", reqId: id })} onNav={nav} />}
+            {view.name === "req-detail"   && currentReq && <RequisitionDetail req={currentReq} candidates={candidates} onBack={() => nav("requisitions")} onUpdateCandidate={updateCandidate} onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "req-detail", reqId: view.reqId })} />}
+            {view.name === "jd-generator" && <JDGenerator onCreate={() => nav("requisitions")} />}
+            {view.name === "sourcing"     && <Sourcing requisitions={requisitions} candidates={candidates} onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "sourcing" })} />}
+            {view.name === "screening-hub"&& <ScreeningHub candidates={candidates} onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "screening-hub" })} onStartScreening={(id) => setView({ name: "screening", candidateId: id, from: "screening-hub" })} />}
+            {view.name === "candidate"    && currentCandidate && <CandidateDetail candidate={currentCandidate} onBack={() => { if (view.from === "req-detail") setView({ name: "req-detail", reqId: view.reqId }); else if (view.from === "screening-hub") nav("screening-hub"); else nav("sourcing"); }} onScreen={() => setView({ name: "screening", candidateId: view.candidateId, from: view.from, reqId: view.reqId })} />}
+            {view.name === "screening"    && currentCandidate && <Screening candidate={currentCandidate} onBack={() => { if (view.from === "screening-hub") nav("screening-hub"); else setView({ name: "candidate", candidateId: view.candidateId, from: view.from, reqId: view.reqId }); }} />}
+            {view.name === "admin"        && <Admin />}
+          </div>
+        </main>
+        <CopilotDrawer open={copilotOpen} onClose={() => setCopilotOpen(false)} />
+      </div>
+    </PersonaContext.Provider>
   );
 }
