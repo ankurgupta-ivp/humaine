@@ -1708,53 +1708,177 @@ const Sidebar = ({ active, onNav, persona }) => {
     { key: "admin",         label: "Admin",       icon: Settings },
   ];
   const allowed = PERSONAS[persona]?.navItems || ALL_ITEMS.map(i => i.key);
-  const items = ALL_ITEMS.filter(it => allowed.includes(it.key));
+  const items   = ALL_ITEMS.filter(it => allowed.includes(it.key));
   const colorMap = { indigo: "from-indigo-500 to-violet-500", violet: "from-violet-500 to-fuchsia-500", fuchsia: "from-fuchsia-500 to-pink-500", amber: "from-amber-500 to-orange-500", slate: "from-slate-500 to-slate-700" };
   const p = PERSONAS[persona];
 
+  /* ── Hover-expand logic ── */
+  const [expanded, setExpanded] = useState(false);
+  const leaveTimer = React.useRef(null);
+  const sidebarRef = React.useRef(null);
+
+  const handleEnter = () => {
+    clearTimeout(leaveTimer.current);
+    setExpanded(true);
+  };
+
+  // Small delay on leave so the sidebar stays open while user moves
+  // between nav items or toward scrollable content inside the panel.
+  const handleLeave = (e) => {
+    // If the related target is still inside the sidebar, don't collapse
+    if (sidebarRef.current?.contains(e.relatedTarget)) return;
+    leaveTimer.current = setTimeout(() => setExpanded(false), 200);
+  };
+
+  useEffect(() => () => clearTimeout(leaveTimer.current), []);
+
+  const W_COLLAPSED = 64;   // px — icon rail
+  const W_EXPANDED  = 256;  // px — full nav
+
   return (
-    <aside className="w-64 bg-slate-950 text-slate-300 flex flex-col h-screen sticky top-0">
-      <div className="px-5 py-5 border-b border-slate-800/80">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30">
-            <Brain className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <div className="font-bold text-white tracking-tight text-lg leading-none">HumAIne</div>
-            <div className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-widest">AI Recruitment</div>
-          </div>
+    <aside
+      ref={sidebarRef}
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
+      style={{
+        width: expanded ? W_EXPANDED : W_COLLAPSED,
+        minWidth: expanded ? W_EXPANDED : W_COLLAPSED,
+        transition: "width 220ms cubic-bezier(0.4,0,0.2,1), min-width 220ms cubic-bezier(0.4,0,0.2,1)",
+      }}
+      className="bg-slate-950 text-slate-300 flex flex-col h-screen sticky top-0 z-40 overflow-hidden"
+    >
+      {/* ── Logo ── */}
+      <div
+        className="border-b border-slate-800/80 flex items-center gap-2.5 overflow-hidden"
+        style={{ padding: expanded ? "20px" : "14px", transition: "padding 220ms ease" }}
+      >
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30 shrink-0">
+          <Brain className="w-5 h-5 text-white" />
+        </div>
+        <div
+          className="overflow-hidden"
+          style={{
+            opacity: expanded ? 1 : 0,
+            width: expanded ? "auto" : 0,
+            transition: "opacity 180ms ease, width 220ms ease",
+            whiteSpace: "nowrap",
+          }}
+        >
+          <div className="font-bold text-white tracking-tight text-lg leading-none">HumAIne</div>
+          <div className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-widest">AI Recruitment</div>
         </div>
       </div>
 
-      {/* Active persona chip */}
-      <div className="px-3 pt-3">
-        <div className={`flex items-center gap-2.5 px-3 py-2 rounded-xl bg-gradient-to-r ${colorMap[p.color]} bg-opacity-10 border border-white/10`}>
-          <div className={`w-6 h-6 rounded-lg bg-gradient-to-br ${colorMap[p.color]} flex items-center justify-center text-[9px] font-bold text-white shrink-0`}>{p.avatar}</div>
-          <div>
+      {/* ── Persona chip ── */}
+      <div style={{ padding: expanded ? "12px 12px 0" : "10px 10px 0", transition: "padding 220ms ease" }}>
+        <div
+          className={`flex items-center rounded-xl border border-white/10 bg-gradient-to-r ${colorMap[p.color]} bg-opacity-10 overflow-hidden`}
+          style={{ gap: expanded ? 10 : 0, padding: expanded ? "8px 12px" : "8px", transition: "all 220ms ease" }}
+        >
+          <div
+            className={`rounded-lg bg-gradient-to-br ${colorMap[p.color]} flex items-center justify-center text-[9px] font-bold text-white shrink-0`}
+            style={{ width: 24, height: 24 }}
+          >
+            {p.avatar}
+          </div>
+          <div
+            className="overflow-hidden"
+            style={{ opacity: expanded ? 1 : 0, maxWidth: expanded ? 160 : 0, transition: "opacity 160ms ease, max-width 220ms ease", whiteSpace: "nowrap" }}
+          >
             <div className="text-[9px] text-white/50 uppercase tracking-widest font-bold">Viewing as</div>
             <div className="text-xs font-bold text-white leading-tight">{p.label}</div>
           </div>
         </div>
       </div>
 
-      <nav className="flex-1 px-3 py-3 space-y-0.5">
+      {/* ── Nav items ── */}
+      <nav className="flex-1 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden"
+        style={{ padding: expanded ? "12px" : "12px 8px", transition: "padding 220ms ease" }}
+      >
         {items.map((it) => {
           const Icon = it.icon;
           const isActive = active === it.key;
           return (
-            <button key={it.key} onClick={() => onNav(it.key)} className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm transition-all ${isActive ? "bg-gradient-to-r from-indigo-600/20 to-fuchsia-600/10 text-white border border-indigo-500/30" : "hover:bg-slate-800/60 hover:text-white"}`}>
-              <span className="flex items-center gap-3"><Icon className="w-4 h-4" />{it.label}</span>
-              {it.badge && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white tracking-wider">{it.badge}</span>}
+            <button
+              key={it.key}
+              onClick={() => onNav(it.key)}
+              title={!expanded ? it.label : undefined}
+              className={`w-full flex items-center rounded-xl text-sm transition-all group relative
+                ${isActive
+                  ? "bg-gradient-to-r from-indigo-600/20 to-fuchsia-600/10 text-white border border-indigo-500/30"
+                  : "hover:bg-slate-800/60 hover:text-white text-slate-400"}`}
+              style={{
+                justifyContent: expanded ? "flex-start" : "center",
+                padding: expanded ? "10px 12px" : "10px",
+                gap: expanded ? 12 : 0,
+                transition: "all 220ms ease",
+              }}
+            >
+              <Icon className="w-4 h-4 shrink-0" />
+
+              {/* Label — fades in when expanded */}
+              <span
+                className="overflow-hidden font-medium"
+                style={{
+                  opacity: expanded ? 1 : 0,
+                  maxWidth: expanded ? 160 : 0,
+                  transition: "opacity 160ms ease 40ms, max-width 220ms ease",
+                  whiteSpace: "nowrap",
+                  flex: 1,
+                  textAlign: "left",
+                }}
+              >
+                {it.label}
+              </span>
+
+              {/* Badge — only shown when expanded */}
+              {it.badge && (
+                <span
+                  className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white tracking-wider shrink-0"
+                  style={{ opacity: expanded ? 1 : 0, transition: "opacity 120ms ease" }}
+                >
+                  {it.badge}
+                </span>
+              )}
+
+              {/* Tooltip when collapsed */}
+              {!expanded && (
+                <span className="pointer-events-none absolute left-full ml-2 px-2.5 py-1.5 bg-slate-800 text-white text-xs font-semibold rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity shadow-xl z-50">
+                  {it.label}{it.badge ? ` · ${it.badge}` : ""}
+                </span>
+              )}
             </button>
           );
         })}
       </nav>
 
-      <div className="p-3 border-t border-slate-800/80">
-        <div className="bg-gradient-to-br from-indigo-600/20 to-fuchsia-600/20 border border-indigo-500/30 rounded-xl p-3">
-          <div className="flex items-center gap-2 mb-1"><Zap className="w-4 h-4 text-amber-400" /><span className="text-xs font-semibold text-white">AI credits</span></div>
-          <div className="text-[11px] text-slate-400">2,847 / 5,000 used</div>
-          <div className="h-1.5 bg-slate-800 rounded-full mt-2 overflow-hidden"><div className="h-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 rounded-full" style={{ width: "57%" }} /></div>
+      {/* ── Credits footer ── */}
+      <div
+        className="border-t border-slate-800/80 overflow-hidden"
+        style={{ padding: expanded ? "12px" : "10px 8px", transition: "padding 220ms ease" }}
+      >
+        <div
+          className="bg-gradient-to-br from-indigo-600/20 to-fuchsia-600/20 border border-indigo-500/30 rounded-xl overflow-hidden"
+          style={{ padding: expanded ? "12px" : "8px", transition: "padding 220ms ease" }}
+        >
+          <div className="flex items-center justify-center" style={{ gap: expanded ? 8 : 0, transition: "gap 220ms ease" }}>
+            <Zap className="w-4 h-4 text-amber-400 shrink-0" />
+            <span
+              className="text-xs font-semibold text-white overflow-hidden"
+              style={{ opacity: expanded ? 1 : 0, maxWidth: expanded ? 120 : 0, whiteSpace: "nowrap", transition: "opacity 160ms ease, max-width 220ms ease" }}
+            >
+              AI credits
+            </span>
+          </div>
+          <div
+            className="overflow-hidden"
+            style={{ maxHeight: expanded ? 40 : 0, opacity: expanded ? 1 : 0, transition: "max-height 220ms ease, opacity 160ms ease" }}
+          >
+            <div className="text-[11px] text-slate-400 mt-1">2,847 / 5,000 used</div>
+            <div className="h-1.5 bg-slate-800 rounded-full mt-2 overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 rounded-full" style={{ width: "57%" }} />
+            </div>
+          </div>
         </div>
       </div>
     </aside>
@@ -3368,7 +3492,7 @@ export default function HumAIne() {
       <div className="min-h-screen bg-slate-50 flex" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>
         <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
         <Sidebar active={sidebarActive} onNav={nav} persona={persona} />
-        <main className="flex-1 flex flex-col min-w-0">
+        <main className="flex-1 flex flex-col min-w-0" style={{ transition: "margin-left 220ms cubic-bezier(0.4,0,0.2,1)" }}>
           <TopBar onCopilot={() => setCopilotOpen(true)} persona={persona} onPersonaChange={handlePersonaChange} />
           <PersonaBanner persona={persona} />
           <div className="flex-1">
