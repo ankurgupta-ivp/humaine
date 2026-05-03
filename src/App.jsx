@@ -1333,6 +1333,7 @@ const InterviewHub = ({ candidates, requisitions, onOpenCandidate, setView }) =>
       )}
     </div>
   );
+};
 
 /* ============================================================
    OFFER MANAGEMENT — MOCK DATA
@@ -2068,8 +2069,6 @@ const OfferStatusPanel = ({ candidate, onOpenOffer }) => {
       </span>
     </button>
   );
-};
-
 };
 
 /* ============================================================
