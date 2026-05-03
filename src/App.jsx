@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef, useContext } from "react";
 import {
   LayoutDashboard, Briefcase, Sparkles, Users, FileSearch, MessageSquare,
   Settings, Search, Bell, ChevronRight, Plus, X, Check, Filter,
@@ -7,7 +7,8 @@ import {
   Award, AlertCircle, ThumbsUp, ThumbsDown, Pause, GripVertical, Trash2,
   Edit3, Save, Sliders, Layers, FileText, Clock, ChevronDown,
   Calendar, ClipboardList, BarChart2, Flag, Shield, Activity,
-  PlayCircle, CheckCircle2, XCircle, HelpCircle, BookOpen, Lightbulb
+  PlayCircle, CheckCircle2, XCircle, HelpCircle, BookOpen, Lightbulb,
+  DollarSign, FileSignature, Mail, UserCheck, AlertTriangle, Timer
 } from "lucide-react";
 
 /* ============================================================
@@ -25,10 +26,14 @@ import {
 
 /* ---------- MOCK DATA ---------- */
 const seedRequisitions = [
-  { id: "req-1", title: "Senior Full-Stack Engineer", project: "Apex Banking Platform", status: "Active", priority: "High", openings: 3, daysOpen: 12, sourced: 47, screened: 28, shortlisted: 14, interviewed: 7, offered: 2, hired: 1, budget: "$120k–$160k", expRange: "5–8 yrs", skills: ["React", "Node.js", "PostgreSQL", "AWS", "TypeScript"] },
-  { id: "req-2", title: "Cloud Solutions Architect", project: "Helios Migration", status: "Active", priority: "Critical", openings: 1, daysOpen: 21, sourced: 32, screened: 19, shortlisted: 8, interviewed: 4, offered: 1, hired: 0, budget: "$160k–$200k", expRange: "8–12 yrs", skills: ["AWS", "Kubernetes", "Terraform", "Python"] },
-  { id: "req-3", title: "Data Engineer (Snowflake)", project: "Northstar Analytics", status: "Active", priority: "Medium", openings: 2, daysOpen: 6, sourced: 18, screened: 11, shortlisted: 5, interviewed: 2, offered: 0, hired: 0, budget: "$110k–$140k", expRange: "4–7 yrs", skills: ["Snowflake", "dbt", "Python", "Airflow"] },
-  { id: "req-4", title: "iOS Engineer", project: "Lumen Mobile", status: "On Hold", priority: "Low", openings: 1, daysOpen: 34, sourced: 22, screened: 9, shortlisted: 3, interviewed: 1, offered: 0, hired: 0, budget: "$130k–$155k", expRange: "5+ yrs", skills: ["Swift", "SwiftUI", "Combine"] },
+  { id: "req-1", title: "Senior Full-Stack Engineer", project: "Apex Banking Platform", status: "Active", priority: "High", openings: 3, daysOpen: 12, sourced: 47, screened: 28, shortlisted: 14, interviewed: 7, offered: 2, hired: 1, budget: "$120k–$160k", expRange: "5–8 yrs", skills: ["React", "Node.js", "PostgreSQL", "AWS", "TypeScript"],
+    bu: "Financial Services", department: "Engineering", product: "Apex Banking", costCenter: "CC-1042", locationOffice: "Bangalore" },
+  { id: "req-2", title: "Cloud Solutions Architect", project: "Helios Migration", status: "Active", priority: "Critical", openings: 1, daysOpen: 21, sourced: 32, screened: 19, shortlisted: 8, interviewed: 4, offered: 1, hired: 0, budget: "$160k–$200k", expRange: "8–12 yrs", skills: ["AWS", "Kubernetes", "Terraform", "Python"],
+    bu: "Enterprise Cloud", department: "Architecture", product: "Helios Platform", costCenter: "CC-2201", locationOffice: "Pune" },
+  { id: "req-3", title: "Data Engineer (Snowflake)", project: "Northstar Analytics", status: "Active", priority: "Medium", openings: 2, daysOpen: 6, sourced: 18, screened: 11, shortlisted: 5, interviewed: 2, offered: 0, hired: 0, budget: "$110k–$140k", expRange: "4–7 yrs", skills: ["Snowflake", "dbt", "Python", "Airflow"],
+    bu: "Data & Analytics", department: "Data Engineering", product: "Northstar", costCenter: "CC-3105", locationOffice: "Hyderabad" },
+  { id: "req-4", title: "iOS Engineer", project: "Lumen Mobile", status: "On Hold", priority: "Low", openings: 1, daysOpen: 34, sourced: 22, screened: 9, shortlisted: 3, interviewed: 1, offered: 0, hired: 0, budget: "$130k–$155k", expRange: "5+ yrs", skills: ["Swift", "SwiftUI", "Combine"],
+    bu: "Consumer Products", department: "Mobile Engineering", product: "Lumen App", costCenter: "CC-4012", locationOffice: "Bangalore" },
 ];
 
 const seedCandidates = [
@@ -110,6 +115,181 @@ const ScoreRing = ({ score, size = 56 }) => {
 /* ---------- SIDEBAR ---------- */
 
 /* ============================================================
+   ORG FILTER SYSTEM
+   Multi-dimensional org filtering (BU / Dept / Product / Location / Cost Center).
+   Filter values come from Admin config in real life — mocked here.
+   Filters are global state via Context, applied across all data-bearing screens.
+   ============================================================ */
+const OrgFilterContext = React.createContext(null);
+const useOrgFilters = () => React.useContext(OrgFilterContext);
+
+/* The dimensions config — what Admin can edit. Each dimension has:
+   - key: matches the requisition field name
+   - label: shown in UI
+   - icon: lucide icon
+   - enabled: whether it's used at all
+   - values: full list of selectable values
+*/
+const DEFAULT_FILTER_DIMENSIONS = [
+  {
+    key: "bu", label: "Business Unit", icon: "Briefcase", enabled: true,
+    values: ["Financial Services", "Enterprise Cloud", "Data & Analytics", "Consumer Products", "Healthcare Tech", "Public Sector"],
+  },
+  {
+    key: "department", label: "Department", icon: "Layers", enabled: true,
+    values: ["Engineering", "Architecture", "Data Engineering", "Mobile Engineering", "Product", "Design", "QA"],
+  },
+  {
+    key: "product", label: "Product", icon: "Target", enabled: true,
+    values: ["Apex Banking", "Helios Platform", "Northstar", "Lumen App", "Pulse CRM", "Atlas Health"],
+  },
+  {
+    key: "locationOffice", label: "Location", icon: "MapPin", enabled: true,
+    values: ["Bangalore", "Pune", "Hyderabad", "Mumbai", "Delhi NCR", "Chennai", "Remote"],
+  },
+  {
+    key: "costCenter", label: "Cost Center", icon: "DollarSign", enabled: false, // off by default — admin can enable
+    values: ["CC-1042", "CC-2201", "CC-3105", "CC-4012", "CC-5007"],
+  },
+];
+
+const iconMap = { Briefcase, Layers, Target, MapPin, DollarSign };
+
+/* Apply current filters to a list of requisitions */
+const applyOrgFilters = (requisitions, filters) => {
+  if (!filters || Object.keys(filters).length === 0) return requisitions;
+  return requisitions.filter(r => {
+    return Object.entries(filters).every(([key, vals]) => {
+      if (!vals || vals.length === 0) return true; // empty filter = no constraint
+      return vals.includes(r[key]);
+    });
+  });
+};
+
+/* Apply filters to candidates by routing through their requisition */
+const applyOrgFiltersToCandidates = (candidates, requisitions, filters) => {
+  if (!filters || Object.keys(filters).length === 0) return candidates;
+  const allowedReqIds = new Set(applyOrgFilters(requisitions, filters).map(r => r.id));
+  return candidates.filter(c => allowedReqIds.has(c.reqId));
+};
+
+/* Count how many filters are currently active */
+const countActiveFilters = (filters) =>
+  Object.values(filters || {}).reduce((acc, vals) => acc + (vals?.length || 0), 0);
+
+/* ============================================================
+   ORG FILTER BAR — slim strip below TopBar, always visible
+   ============================================================ */
+const OrgFilterBar = ({ dimensions, filters, onChange }) => {
+  const [openDim, setOpenDim] = useState(null);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpenDim(null); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const enabledDims = dimensions.filter(d => d.enabled);
+  const activeCount = countActiveFilters(filters);
+
+  const toggleValue = (dimKey, val) => {
+    const current = filters[dimKey] || [];
+    const next = current.includes(val) ? current.filter(v => v !== val) : [...current, val];
+    onChange({ ...filters, [dimKey]: next.length ? next : undefined });
+  };
+
+  const clearAll = () => onChange({});
+  const clearDimension = (dimKey) => {
+    const next = { ...filters };
+    delete next[dimKey];
+    onChange(next);
+  };
+
+  return (
+    <div ref={ref} className="bg-white border-b border-slate-200 px-8 py-2.5 flex items-center gap-2 flex-wrap relative z-20">
+      <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5 shrink-0">
+        <Filter className="w-3.5 h-3.5" />Filter scope:
+      </span>
+
+      {enabledDims.map(dim => {
+        const Icon = iconMap[dim.icon] || Filter;
+        const selected = filters[dim.key] || [];
+        const isActive = selected.length > 0;
+        const isOpen = openDim === dim.key;
+
+        return (
+          <div key={dim.key} className="relative">
+            <button
+              onClick={() => setOpenDim(isOpen ? null : dim.key)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition border ${
+                isActive
+                  ? "bg-indigo-50 border-indigo-300 text-indigo-700"
+                  : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              <Icon className="w-3 h-3" />
+              <span>{dim.label}</span>
+              {isActive && (
+                <span className="bg-indigo-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full tabular-nums">{selected.length}</span>
+              )}
+              <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {isOpen && (
+              <div className="absolute left-0 top-full mt-1 w-64 bg-white rounded-xl border border-slate-200 shadow-xl z-50 overflow-hidden">
+                <div className="px-3 py-2 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{dim.label}</span>
+                  {isActive && (
+                    <button onClick={() => clearDimension(dim.key)} className="text-[10px] font-semibold text-rose-600 hover:text-rose-700">
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <div className="max-h-64 overflow-y-auto p-1">
+                  {dim.values.map(val => {
+                    const checked = selected.includes(val);
+                    return (
+                      <button
+                        key={val}
+                        onClick={() => toggleValue(dim.key, val)}
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition text-left ${
+                          checked ? "bg-indigo-50 text-indigo-900" : "hover:bg-slate-50 text-slate-700"
+                        }`}
+                      >
+                        <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 ${
+                          checked ? "bg-indigo-600 border-indigo-600" : "border-slate-300"
+                        }`}>
+                          {checked && <Check className="w-2.5 h-2.5 text-white" />}
+                        </div>
+                        <span className="truncate">{val}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {activeCount > 0 && (
+        <button
+          onClick={clearAll}
+          className="ml-1 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition"
+        >
+          <X className="w-3 h-3" />Clear all ({activeCount})
+        </button>
+      )}
+
+      <span className="ml-auto text-[10px] text-slate-400">
+        Filters apply across dashboards, lifecycles & all data views
+      </span>
+    </div>
+  );
+};
+
+/* ============================================================
    PERSONA SYSTEM
    5 roles — each gets tailored nav, dashboard, and data focus.
    Stored in React context so every component can read it.
@@ -125,7 +305,7 @@ const PERSONAS = {
     avatarGrad: "from-indigo-500 to-violet-500",
     description: "Full pipeline · AI scores · alerts",
     color: "indigo",
-    navItems: ["dashboard", "requisitions", "jd-generator", "sourcing", "screening-hub", "interviews"],
+    navItems: ["dashboard", "requisitions", "jd-generator", "sourcing", "screening-hub", "interviews", "offers"],
   },
   hiringManager: {
     key: "hiringManager",
@@ -134,7 +314,7 @@ const PERSONAS = {
     avatarGrad: "from-violet-500 to-fuchsia-500",
     description: "Shortlisted candidates · interview feedback",
     color: "violet",
-    navItems: ["dashboard", "requisitions", "interviews", "screening-hub"],
+    navItems: ["dashboard", "requisitions", "interviews", "offers", "screening-hub"],
   },
   deliveryManager: {
     key: "deliveryManager",
@@ -161,7 +341,7 @@ const PERSONAS = {
     avatarGrad: "from-slate-500 to-slate-700",
     description: "Configuration · system settings",
     color: "slate",
-    navItems: ["dashboard", "requisitions", "jd-generator", "sourcing", "screening-hub", "interviews", "admin"],
+    navItems: ["dashboard", "requisitions", "jd-generator", "sourcing", "screening-hub", "interviews", "offers", "admin"],
   },
 };
 
@@ -175,10 +355,10 @@ const interviewFeedback = [
 ];
 
 const projectRiskData = [
-  { project: "Apex Banking Platform",  role: "Senior Full-Stack Engineer", daysOpen: 12, ttfTarget: 30, risk: "medium", coverage: 72, gap: ["TypeScript depth", "Fintech compliance"], openings: 3, filled: 1 },
-  { project: "Helios Migration",        role: "Cloud Solutions Architect",  daysOpen: 21, ttfTarget: 25, risk: "high",   coverage: 45, gap: ["Kubernetes", "Terraform IaC"],       openings: 1, filled: 0 },
-  { project: "Northstar Analytics",     role: "Data Engineer (Snowflake)", daysOpen: 6,  ttfTarget: 35, risk: "low",    coverage: 81, gap: ["dbt advanced"],                         openings: 2, filled: 0 },
-  { project: "Lumen Mobile",            role: "iOS Engineer",              daysOpen: 34, ttfTarget: 30, risk: "high",   coverage: 38, gap: ["SwiftUI", "Core Data", "CI/CD"],        openings: 1, filled: 0 },
+  { project: "Apex Banking Platform",  role: "Senior Full-Stack Engineer", daysOpen: 12, ttfTarget: 30, risk: "medium", coverage: 72, gap: ["TypeScript depth", "Fintech compliance"], openings: 3, filled: 1, bu: "Financial Services", department: "Engineering",        product: "Apex Banking" },
+  { project: "Helios Migration",        role: "Cloud Solutions Architect",  daysOpen: 21, ttfTarget: 25, risk: "high",   coverage: 45, gap: ["Kubernetes", "Terraform IaC"],       openings: 1, filled: 0, bu: "Enterprise Cloud",   department: "Architecture",       product: "Helios Platform" },
+  { project: "Northstar Analytics",     role: "Data Engineer (Snowflake)", daysOpen: 6,  ttfTarget: 35, risk: "low",    coverage: 81, gap: ["dbt advanced"],                         openings: 2, filled: 0, bu: "Data & Analytics",   department: "Data Engineering",   product: "Northstar" },
+  { project: "Lumen Mobile",            role: "iOS Engineer",              daysOpen: 34, ttfTarget: 30, risk: "high",   coverage: 38, gap: ["SwiftUI", "Core Data", "CI/CD"],        openings: 1, filled: 0, bu: "Consumer Products",  department: "Mobile Engineering", product: "Lumen App" },
 ];
 
 const hrMetrics = {
@@ -1153,6 +1333,743 @@ const InterviewHub = ({ candidates, requisitions, onOpenCandidate, setView }) =>
       )}
     </div>
   );
+
+/* ============================================================
+   OFFER MANAGEMENT — MOCK DATA
+   ============================================================ */
+
+const offerRecords = {
+  "c-6": { // Nina Patel — Active offer, ageing
+    id: "off-001",
+    candidateId: "c-6",
+    reqId: "req-1",
+    status: "Awaiting Response",        // Draft | Pending Approval | Approved | Sent | Awaiting Response | Accepted | Declined | Expired | Withdrawn
+    base: 6200000,                       // ₹62L base
+    bonus: 800000,                       // ₹8L joining bonus
+    esop: 4500000,                       // ₹45L ESOP over 4 years
+    band: { min: 5500000, max: 6500000 },
+    aiRecommended: 6000000,
+    sentDate: "Apr 28, 2025",
+    deadline: "May 5, 2025",
+    daysSinceSent: 3,
+    daysToDeadline: 4,
+    competingOfferRisk: "high",
+    competingOfferNote: "LinkedIn activity suggests engagement with Razorpay recruiter. Reference also mentioned a competing fintech offer.",
+    approvalChain: [
+      { role: "Recruiter",       name: "Riya K",          status: "approved", date: "Apr 27, 2025", time: "2:00 PM" },
+      { role: "Hiring Manager",  name: "Sanjay R",        status: "approved", date: "Apr 27, 2025", time: "4:30 PM" },
+      { role: "Finance",         name: "Aarti M",         status: "approved", date: "Apr 28, 2025", time: "11:00 AM" },
+      { role: "VP Engineering",  name: "Karthik V",       status: "approved", date: "Apr 28, 2025", time: "2:00 PM" },
+    ],
+    aiNotes: [
+      { type: "risk",           text: "Offer pending response 3+ days. Industry benchmark: 67% of accepts happen within 48h. Risk of competing offer increases sharply after day 4." },
+      { type: "recommendation", text: "Recommend personal outreach by Hiring Manager today. Increase joining bonus by ₹2L to neutralise comp gap if competing offer is from a higher-band company." },
+      { type: "insight",        text: "Nina's reference (ex-CTO at Freshworks) reached out unprompted to recruiter on Apr 29. Strong signal — if we close fast, accept probability >85%." },
+    ],
+    revisions: [
+      { version: 1, date: "Apr 27, 2025", base: 6000000, bonus: 500000, status: "draft", notes: "Initial draft at AI-recommended value" },
+      { version: 2, date: "Apr 28, 2025", base: 6200000, bonus: 800000, status: "sent", notes: "Stretched after VP review — leadership signal noted" },
+    ]
+  },
+  "c-1": { // Priya Raman — Approved, awaiting send
+    id: "off-002",
+    candidateId: "c-1",
+    reqId: "req-1",
+    status: "Approved",
+    base: 5800000,
+    bonus: 500000,
+    esop: 3500000,
+    band: { min: 5500000, max: 6500000 },
+    aiRecommended: 5800000,
+    sentDate: null,
+    deadline: null,
+    daysSinceSent: null,
+    daysToDeadline: null,
+    competingOfferRisk: "medium",
+    competingOfferNote: "Candidate mentioned interview process underway with Stripe (current employer's competitor). No formal offer yet.",
+    approvalChain: [
+      { role: "Recruiter",       name: "Riya K",    status: "approved", date: "Apr 30, 2025", time: "10:00 AM" },
+      { role: "Hiring Manager",  name: "Sanjay R",  status: "approved", date: "Apr 30, 2025", time: "1:00 PM" },
+      { role: "Finance",         name: "Aarti M",   status: "approved", date: "May 1, 2025",  time: "9:30 AM" },
+      { role: "VP Engineering",  name: "Karthik V", status: "approved", date: "May 1, 2025",  time: "11:00 AM" },
+    ],
+    aiNotes: [
+      { type: "recommendation", text: "All approvals secured. Send within 24 hours — Priya completed L3 yesterday and momentum is critical." },
+      { type: "insight",        text: "Priya scored 9.0 in system design. Comp at midpoint of band is appropriate. Risk of competing offer: medium." },
+    ],
+    revisions: [
+      { version: 1, date: "Apr 30, 2025", base: 5800000, bonus: 500000, status: "approved", notes: "Approved at AI-recommended value" },
+    ]
+  },
+  "c-8": { // Sara Lindqvist — Accepted (already hired)
+    id: "off-003",
+    candidateId: "c-8",
+    reqId: "req-1",
+    status: "Accepted",
+    base: 5800000,
+    bonus: 600000,
+    esop: 3800000,
+    band: { min: 5500000, max: 6500000 },
+    aiRecommended: 5700000,
+    sentDate: "Apr 14, 2025",
+    deadline: "Apr 21, 2025",
+    daysSinceSent: 18,
+    daysToDeadline: 0,
+    acceptedDate: "Apr 15, 2025",
+    competingOfferRisk: "low",
+    competingOfferNote: "No competing offer flagged. Referral source confirmed candidate's interest.",
+    approvalChain: [
+      { role: "Recruiter",       name: "Riya K",    status: "approved", date: "Apr 13, 2025", time: "9:00 AM"  },
+      { role: "Hiring Manager",  name: "Sanjay R",  status: "approved", date: "Apr 13, 2025", time: "11:00 AM" },
+      { role: "Finance",         name: "Aarti M",   status: "approved", date: "Apr 14, 2025", time: "9:00 AM"  },
+      { role: "VP Engineering",  name: "Karthik V", status: "approved", date: "Apr 14, 2025", time: "10:30 AM" },
+    ],
+    aiNotes: [
+      { type: "insight", text: "Accepted in 18 hours — fastest accept this quarter. No counter-offer or negotiation. Strong cultural fit confirmed." },
+    ],
+    revisions: [
+      { version: 1, date: "Apr 13, 2025", base: 5800000, bonus: 600000, status: "accepted", notes: "Single revision — direct accept" },
+    ]
+  },
+  "c-2": { // Marcus Webb — Pending Approval (still in interview pipeline but offer started)
+    id: "off-004",
+    candidateId: "c-2",
+    reqId: "req-1",
+    status: "Pending Approval",
+    base: 6800000,
+    bonus: 1000000,
+    esop: 5000000,
+    band: { min: 5500000, max: 6500000 },
+    aiRecommended: 6500000,
+    sentDate: null,
+    deadline: null,
+    daysSinceSent: null,
+    daysToDeadline: null,
+    competingOfferRisk: "high",
+    competingOfferNote: "Candidate explicitly mentioned competing offer from Atlassian — confirmed by reference. Negotiation expected.",
+    approvalChain: [
+      { role: "Recruiter",       name: "Riya K",    status: "approved", date: "May 1, 2025", time: "3:00 PM" },
+      { role: "Hiring Manager",  name: "Sanjay R",  status: "approved", date: "May 1, 2025", time: "4:30 PM" },
+      { role: "Finance",         name: "Aarti M",   status: "pending",  date: null,          time: null      },
+      { role: "VP Engineering",  name: "Karthik V", status: "pending",  date: null,          time: null      },
+    ],
+    aiNotes: [
+      { type: "risk",           text: "Proposed comp ₹3L above band ceiling — Finance approval blocked pending VP Engineering escalation." },
+      { type: "recommendation", text: "Marcus has competing Atlassian offer. Accelerate approval today or risk losing him. ROI justifies stretch — Staff-level platform engineering is rare." },
+    ],
+    revisions: [
+      { version: 1, date: "May 1, 2025", base: 6500000, bonus: 800000, status: "draft", notes: "Initial at band ceiling" },
+      { version: 2, date: "May 1, 2025", base: 6800000, bonus: 1000000, status: "pending-approval", notes: "Stretched per HM after competing offer disclosure" },
+    ]
+  },
+};
+
+const offerStatusConfig = {
+  "Draft":             { tone: "default", icon: FileText,    label: "Draft" },
+  "Pending Approval":  { tone: "amber",   icon: Clock,       label: "Pending Approval" },
+  "Approved":          { tone: "indigo",  icon: CheckCircle2,label: "Approved — Ready to Send" },
+  "Sent":              { tone: "violet",  icon: Send,        label: "Sent" },
+  "Awaiting Response": { tone: "amber",   icon: Timer,       label: "Awaiting Response" },
+  "Accepted":          { tone: "emerald", icon: UserCheck,   label: "Accepted" },
+  "Declined":          { tone: "rose",    icon: XCircle,     label: "Declined" },
+  "Expired":           { tone: "rose",    icon: XCircle,     label: "Expired" },
+  "Withdrawn":         { tone: "default", icon: XCircle,     label: "Withdrawn" },
+};
+
+const formatINR = (n) => {
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)} Cr`;
+  if (n >= 100000)   return `₹${(n / 100000).toFixed(1)} L`;
+  return `₹${n.toLocaleString("en-IN")}`;
+};
+
+const getOfferRecord = (candidateId) => offerRecords[candidateId] || null;
+const getAllOffers   = () => Object.values(offerRecords);
+
+/* AI offer recommendation generator — mock */
+const generateOfferRecommendation = (candidate, req) => {
+  const baseRec = candidate.match >= 95 ? 6300000 : candidate.match >= 90 ? 6000000 : candidate.match >= 85 ? 5700000 : 5500000;
+  return {
+    base: baseRec,
+    bonus: Math.round(baseRec * 0.12),
+    esop: Math.round(baseRec * 0.6),
+    band: { min: 5500000, max: 6500000 },
+    rationale: [
+      `Match score ${candidate.match}% places candidate at ${candidate.match >= 90 ? "top quartile" : "mid-band"} of comp range`,
+      `${candidate.exp} years experience — ${candidate.exp >= 7 ? "above" : "within"} expected band for ${req?.title || "this role"}`,
+      `Communication score ${candidate.commScore}/10 ${candidate.commScore >= 9 ? "supports stretch comp" : "supports market-rate comp"}`,
+    ],
+    risks: candidate.gaps?.length > 0 ? candidate.gaps.slice(0, 2).map(g => `Gap: ${g} — may justify holding at midpoint`) : [],
+  };
+};
+
+/* ============================================================
+   OFFERS HUB — sidebar entry point
+   ============================================================ */
+const OffersHub = ({ candidates, requisitions, setView }) => {
+  const [filter, setFilter] = useState("all"); // all | active | accepted | declined
+  const offers = getAllOffers();
+
+  const filteredOffers = offers.filter(o => {
+    if (filter === "all") return true;
+    if (filter === "active")   return ["Draft", "Pending Approval", "Approved", "Sent", "Awaiting Response"].includes(o.status);
+    if (filter === "accepted") return o.status === "Accepted";
+    if (filter === "declined") return ["Declined", "Expired", "Withdrawn"].includes(o.status);
+    return true;
+  });
+
+  const stats = [
+    { label: "Active Offers",      value: offers.filter(o => ["Draft","Pending Approval","Approved","Sent","Awaiting Response"].includes(o.status)).length, color: "from-indigo-500 to-violet-500", icon: FileSignature },
+    { label: "Awaiting Response",  value: offers.filter(o => o.status === "Awaiting Response").length, color: "from-amber-500 to-orange-500", icon: Timer },
+    { label: "Accepted (30d)",     value: offers.filter(o => o.status === "Accepted").length, color: "from-emerald-500 to-teal-500", icon: UserCheck },
+    { label: "Avg Time-to-Accept", value: "2.4d", color: "from-violet-500 to-fuchsia-500", icon: Clock, sub: "↓ 1.1d vs Q3" },
+  ];
+
+  return (
+    <div className="p-8 space-y-6 max-w-6xl">
+      <div className="flex items-end justify-between">
+        <div>
+          <div className="text-xs font-semibold text-violet-600 uppercase tracking-widest mb-1 flex items-center gap-2">
+            <FileSignature className="w-3 h-3" />Offer Management
+          </div>
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Offers</h1>
+          <p className="text-sm text-slate-500 mt-1">AI-recommended comp, approval workflow, response tracking, and competing-offer risk.</p>
+        </div>
+      </div>
+
+      {/* Stat strip */}
+      <div className="grid grid-cols-4 gap-3">
+        {stats.map(s => {
+          const Icon = s.icon;
+          return (
+            <Card key={s.label} className="p-4 relative overflow-hidden">
+              <div className={`absolute -right-4 -top-4 w-20 h-20 rounded-full opacity-10 bg-gradient-to-br ${s.color}`} />
+              <div className="relative flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${s.color} flex items-center justify-center shrink-0`}>
+                  <Icon className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500 font-medium leading-tight">{s.label}</div>
+                  <div className="text-2xl font-bold text-slate-900 tabular-nums">{s.value}</div>
+                  {s.sub && <div className="text-[10px] text-emerald-600 font-semibold">{s.sub}</div>}
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Filter tabs */}
+      <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit">
+        {[["all", "All"], ["active", "Active"], ["accepted", "Accepted"], ["declined", "Declined / Expired"]].map(([key, label]) => (
+          <button key={key} onClick={() => setFilter(key)}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${filter === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Offers list */}
+      <div className="space-y-3">
+        {filteredOffers.length === 0 ? (
+          <Card className="p-12 text-center">
+            <FileSignature className="w-10 h-10 mx-auto text-slate-200 mb-3" />
+            <div className="font-semibold text-slate-600">No offers in this view</div>
+            <div className="text-sm text-slate-400 mt-1">Offers are created from candidate profiles after interview rounds complete.</div>
+          </Card>
+        ) : (
+          filteredOffers.map(offer => {
+            const candidate = candidates.find(c => c.id === offer.candidateId);
+            const req       = requisitions.find(r => r.id === offer.reqId);
+            if (!candidate) return null;
+            const cfg = offerStatusConfig[offer.status];
+            const StatusIcon = cfg.icon;
+            const total = offer.base + offer.bonus;
+            const inBand = total >= offer.band.min && total <= offer.band.max;
+            const overBand = total > offer.band.max;
+
+            // Urgency calculation
+            let urgency = null;
+            if (offer.status === "Awaiting Response") {
+              if (offer.daysToDeadline <= 1) urgency = { level: "high",   text: `${offer.daysToDeadline === 0 ? "Expires today" : "Expires tomorrow"}`, color: "rose" };
+              else if (offer.daysToDeadline <= 3) urgency = { level: "medium", text: `${offer.daysToDeadline} days to deadline`, color: "amber" };
+            } else if (offer.status === "Pending Approval") {
+              urgency = { level: "medium", text: "Approval pending", color: "amber" };
+            }
+
+            return (
+              <Card key={offer.id} className="overflow-hidden hover:shadow-md transition">
+                <button onClick={() => setView({ name: "offer-detail", offerId: offer.id })} className="w-full text-left">
+                  <div className="px-5 py-4 flex items-center gap-4">
+                    {/* Avatar */}
+                    <div className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 ${candidate.match >= 90 ? "bg-emerald-500" : "bg-indigo-500"}`}>
+                      {candidate.name.split(" ").map(n => n[0]).join("")}
+                    </div>
+
+                    {/* Name + role */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-slate-900">{candidate.name}</span>
+                        <Pill tone={cfg.tone}><StatusIcon className="w-3 h-3" />{cfg.label}</Pill>
+                        {urgency && (
+                          <Pill tone={urgency.color}>
+                            <AlertTriangle className="w-3 h-3" />{urgency.text}
+                          </Pill>
+                        )}
+                        {offer.competingOfferRisk === "high" && (
+                          <Pill tone="rose"><Flag className="w-3 h-3" />Competing offer risk</Pill>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5 truncate">
+                        {req?.title} · {req?.project} · Offer {offer.id.toUpperCase()}
+                      </div>
+                    </div>
+
+                    {/* Comp */}
+                    <div className="text-right shrink-0">
+                      <div className="text-base font-bold text-slate-900 tabular-nums">{formatINR(total)}</div>
+                      <div className="text-[10px] text-slate-400">
+                        {inBand ? "Within band" : overBand ? "↑ Above band" : "↓ Below band"}
+                      </div>
+                    </div>
+
+                    {/* Sent/Deadline */}
+                    {offer.status === "Awaiting Response" && (
+                      <div className="text-right shrink-0 px-3 border-l border-slate-200">
+                        <div className="text-xs font-bold text-slate-700 tabular-nums">Day {offer.daysSinceSent}/{offer.daysSinceSent + offer.daysToDeadline}</div>
+                        <div className="text-[10px] text-slate-400">since sent</div>
+                      </div>
+                    )}
+
+                    <ChevronRight className="w-4 h-4 text-slate-300 shrink-0" />
+                  </div>
+                </button>
+              </Card>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* ============================================================
+   OFFER DETAIL — comp breakdown, approval chain, AI notes
+   ============================================================ */
+const OfferDetail = ({ offer, candidate, req, onBack, onOpenCandidate, onUpdateStatus }) => {
+  const [tab, setTab] = useState("overview");
+  if (!offer || !candidate) return null;
+
+  const cfg = offerStatusConfig[offer.status];
+  const StatusIcon = cfg.icon;
+  const total = offer.base + offer.bonus;
+  const totalWithEsop = total + offer.esop;
+  const inBand = total >= offer.band.min && total <= offer.band.max;
+  const overBand = total > offer.band.max;
+  const bandPosition = ((total - offer.band.min) / (offer.band.max - offer.band.min)) * 100;
+
+  return (
+    <div className="p-8 space-y-6 max-w-5xl">
+      <button onClick={onBack} className="text-sm text-slate-500 hover:text-slate-900 inline-flex items-center gap-1">
+        <ChevronRight className="w-4 h-4 rotate-180" />Back to offers
+      </button>
+
+      {/* ── Header with status banner ── */}
+      <div className="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 rounded-2xl p-6 text-white relative overflow-hidden">
+        <div className="absolute inset-0 opacity-5" style={{ backgroundImage: "radial-gradient(circle at 20% 50%, #6366f1 0%, transparent 50%), radial-gradient(circle at 80% 20%, #d946ef 0%, transparent 50%)" }} />
+        <div className="relative flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-start gap-4">
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-bold text-white shrink-0 ${candidate.match >= 90 ? "bg-emerald-500" : "bg-indigo-500"}`}>
+              {candidate.name.split(" ").map(n => n[0]).join("")}
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <FileSignature className="w-4 h-4 text-violet-400" />
+                <span className="text-xs font-bold text-violet-400 uppercase tracking-widest">Offer · {offer.id.toUpperCase()}</span>
+              </div>
+              <h2 className="text-xl font-bold leading-tight">{candidate.name}</h2>
+              <button onClick={() => onOpenCandidate(candidate.id)} className="text-slate-400 text-sm mt-0.5 hover:text-violet-300 transition">
+                {req?.title} · {req?.project} →
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            <div className={`px-3 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 ${
+              cfg.tone === "emerald" ? "bg-emerald-500/30 text-emerald-300 border-emerald-500/40" :
+              cfg.tone === "amber"   ? "bg-amber-500/30 text-amber-300 border-amber-500/40" :
+              cfg.tone === "rose"    ? "bg-rose-500/30 text-rose-300 border-rose-500/40" :
+              cfg.tone === "indigo"  ? "bg-indigo-500/30 text-indigo-300 border-indigo-500/40" :
+              cfg.tone === "violet"  ? "bg-violet-500/30 text-violet-300 border-violet-500/40" :
+                                       "bg-white/10 text-slate-300 border-white/20"
+            }`}>
+              <StatusIcon className="w-3 h-3" />{cfg.label}
+            </div>
+            {offer.status === "Awaiting Response" && (
+              <div className="text-right">
+                <div className="text-xs text-slate-400">Response deadline</div>
+                <div className="text-sm font-bold text-amber-300">{offer.deadline} · {offer.daysToDeadline}d remaining</div>
+              </div>
+            )}
+            {offer.status === "Accepted" && offer.acceptedDate && (
+              <div className="text-right">
+                <div className="text-xs text-slate-400">Accepted</div>
+                <div className="text-sm font-bold text-emerald-300">{offer.acceptedDate}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit">
+        {[
+          ["overview",  "Overview",      DollarSign],
+          ["approval",  "Approval Chain",UserCheck],
+          ["ai-notes",  "AI Insights",   Sparkles],
+          ["history",   "Revisions",     Clock],
+        ].map(([key, label, Icon]) => (
+          <button key={key} onClick={() => setTab(key)}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition ${tab === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+            <Icon className="w-3.5 h-3.5" />{label}
+          </button>
+        ))}
+      </div>
+
+      {/* OVERVIEW TAB */}
+      {tab === "overview" && (
+        <div className="space-y-5">
+          {/* Comp breakdown */}
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-bold text-slate-900">Compensation Breakdown</h3>
+              <Pill tone={inBand ? "emerald" : overBand ? "rose" : "amber"}>
+                {inBand ? "Within band" : overBand ? `${formatINR(total - offer.band.max)} above band` : `${formatINR(offer.band.min - total)} below band`}
+              </Pill>
+            </div>
+
+            {/* Comp components */}
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              {[
+                { label: "Base Salary",    val: offer.base,  color: "from-indigo-500 to-violet-500" },
+                { label: "Joining Bonus",  val: offer.bonus, color: "from-violet-500 to-fuchsia-500" },
+                { label: "ESOP (4 yrs)",   val: offer.esop,  color: "from-amber-500 to-orange-500" },
+              ].map(c => (
+                <div key={c.label} className="p-4 rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50">
+                  <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{c.label}</div>
+                  <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{formatINR(c.val)}</div>
+                  <div className={`h-1 mt-3 rounded-full bg-gradient-to-r ${c.color}`} />
+                </div>
+              ))}
+            </div>
+
+            {/* Total */}
+            <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-indigo-50 via-violet-50 to-fuchsia-50 border border-indigo-200">
+              <div>
+                <div className="text-xs text-slate-600 font-semibold">Total Year 1 Cash + ESOP Value</div>
+                <div className="text-3xl font-bold text-slate-900 tabular-nums mt-1">{formatINR(totalWithEsop)}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-slate-500">AI Recommended</div>
+                <div className="text-lg font-bold text-violet-700 tabular-nums">{formatINR(offer.aiRecommended + Math.round(offer.aiRecommended * 0.12))}</div>
+                {Math.abs(total - (offer.aiRecommended + Math.round(offer.aiRecommended * 0.12))) > 100000 && (
+                  <div className={`text-[10px] font-semibold ${total > offer.aiRecommended ? "text-rose-600" : "text-emerald-600"}`}>
+                    {total > offer.aiRecommended ? "Stretched ↑" : "Conservative ↓"}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Band visualization */}
+            <div className="mt-6">
+              <div className="flex items-center justify-between text-xs mb-2">
+                <span className="text-slate-500 font-medium">Band Position</span>
+                <span className="text-slate-400">{formatINR(offer.band.min)} — {formatINR(offer.band.max)}</span>
+              </div>
+              <div className="relative h-3 bg-slate-100 rounded-full">
+                <div className="absolute h-full bg-gradient-to-r from-emerald-300 via-emerald-400 to-amber-300 rounded-full" style={{ width: "100%" }} />
+                <div className="absolute top-1/2 -translate-y-1/2 w-3 h-5 bg-slate-900 rounded-full border-2 border-white shadow-md"
+                  style={{ left: `${Math.max(0, Math.min(100, bandPosition))}%`, transform: `translate(-50%, -50%)` }}
+                  title={`Total cash: ${formatINR(total)}`} />
+              </div>
+              <div className="flex items-center justify-between mt-1 text-[10px] text-slate-400">
+                <span>Min</span><span>Mid</span><span>Max</span>
+              </div>
+            </div>
+          </Card>
+
+          {/* Competing offer risk */}
+          {offer.competingOfferRisk !== "low" && (
+            <Card className={`p-5 border-l-4 ${offer.competingOfferRisk === "high" ? "border-l-rose-500 bg-rose-50/50" : "border-l-amber-500 bg-amber-50/50"}`}>
+              <div className="flex items-start gap-3">
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${offer.competingOfferRisk === "high" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>
+                  <Flag className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className={`text-xs font-bold uppercase tracking-wider mb-1 ${offer.competingOfferRisk === "high" ? "text-rose-700" : "text-amber-700"}`}>
+                    {offer.competingOfferRisk === "high" ? "High" : "Medium"} Competing Offer Risk
+                  </div>
+                  <p className="text-sm text-slate-700 leading-relaxed">{offer.competingOfferNote}</p>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* Quick actions */}
+          <div className="flex gap-2 flex-wrap">
+            {offer.status === "Approved"          && <GradientButton icon={Send}>Send Offer to Candidate</GradientButton>}
+            {offer.status === "Pending Approval"  && <GradientButton icon={Mail}>Nudge Approvers</GradientButton>}
+            {offer.status === "Awaiting Response" && <GradientButton icon={Mail}>Send Follow-up</GradientButton>}
+            {offer.status === "Awaiting Response" && <GradientButton variant="secondary" icon={DollarSign}>Revise Offer</GradientButton>}
+            <GradientButton variant="secondary" icon={FileText}>Download Letter</GradientButton>
+          </div>
+        </div>
+      )}
+
+      {/* APPROVAL CHAIN TAB */}
+      {tab === "approval" && (
+        <Card className="p-6">
+          <h3 className="font-bold text-slate-900 mb-1">Approval Workflow</h3>
+          <p className="text-xs text-slate-500 mb-5">Sequential approval flow — each approver must sign off before next stage activates.</p>
+
+          <div className="relative">
+            {offer.approvalChain.map((step, i) => {
+              const isLast = i === offer.approvalChain.length - 1;
+              const isApproved = step.status === "approved";
+              const isPending  = step.status === "pending";
+              return (
+                <div key={i} className="relative flex items-start gap-4 pb-6">
+                  {/* Connector line */}
+                  {!isLast && (
+                    <div className={`absolute left-4 top-8 w-0.5 h-full ${isApproved ? "bg-emerald-300" : "bg-slate-200"}`} />
+                  )}
+                  {/* Status icon */}
+                  <div className={`relative w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                    isApproved ? "bg-emerald-500" : isPending ? "bg-amber-100 border-2 border-amber-400" : "bg-slate-100 border-2 border-slate-200"
+                  }`}>
+                    {isApproved && <Check className="w-4 h-4 text-white" />}
+                    {isPending  && <Clock className="w-3.5 h-3.5 text-amber-600" />}
+                    {!isApproved && !isPending && <span className="text-[10px] font-bold text-slate-400">{i+1}</span>}
+                  </div>
+                  {/* Content */}
+                  <div className="flex-1 pt-0.5">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <div className="font-semibold text-sm text-slate-900">{step.role}</div>
+                        <div className="text-xs text-slate-500">{step.name}</div>
+                      </div>
+                      <div className="text-right">
+                        {isApproved && (
+                          <>
+                            <Pill tone="emerald"><Check className="w-3 h-3" />Approved</Pill>
+                            <div className="text-[10px] text-slate-400 mt-1">{step.date} · {step.time}</div>
+                          </>
+                        )}
+                        {isPending && <Pill tone="amber"><Clock className="w-3 h-3" />Awaiting</Pill>}
+                        {!isApproved && !isPending && <Pill>Not Started</Pill>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {/* AI NOTES TAB */}
+      {tab === "ai-notes" && (
+        <div className="space-y-3">
+          {offer.aiNotes.map((note, i) => {
+            const styleMap = {
+              risk:           { bg: "bg-rose-50",    border: "border-l-rose-500",    icon: "⚠️", label: "Risk",           color: "text-rose-700" },
+              recommendation: { bg: "bg-emerald-50", border: "border-l-emerald-500", icon: "✅", label: "Recommendation", color: "text-emerald-700" },
+              insight:        { bg: "bg-indigo-50",  border: "border-l-indigo-500",  icon: "💡", label: "Insight",        color: "text-indigo-700" },
+            };
+            const s = styleMap[note.type];
+            return (
+              <Card key={i} className={`p-5 ${s.bg} border-l-4 ${s.border}`}>
+                <div className="flex items-start gap-3">
+                  <span className="text-xl shrink-0">{s.icon}</span>
+                  <div>
+                    <div className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${s.color}`}>{s.label}</div>
+                    <p className="text-sm text-slate-700 leading-relaxed">{note.text}</p>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* REVISIONS TAB */}
+      {tab === "history" && (
+        <Card className="p-6">
+          <h3 className="font-bold text-slate-900 mb-5">Offer Revisions</h3>
+          <div className="space-y-3">
+            {offer.revisions.map((rev, i) => (
+              <div key={i} className="flex items-start gap-4 p-4 rounded-xl border border-slate-100">
+                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 shrink-0">v{rev.version}</div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="font-semibold text-sm text-slate-900">Revision {rev.version} — {rev.date}</div>
+                    <Pill tone={rev.status === "accepted" ? "emerald" : rev.status === "sent" ? "violet" : rev.status === "approved" ? "indigo" : "default"}>{rev.status}</Pill>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">Base {formatINR(rev.base)} · Bonus {formatINR(rev.bonus)}</div>
+                  <p className="text-sm text-slate-700 mt-2 leading-relaxed">{rev.notes}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+/* ============================================================
+   NEW OFFER FORM — accessible from candidate profile / Offered stage
+   ============================================================ */
+const NewOfferForm = ({ candidate, req, onBack, onSubmit }) => {
+  const recommended = generateOfferRecommendation(candidate, req);
+  const [base, setBase]   = useState(recommended.base);
+  const [bonus, setBonus] = useState(recommended.bonus);
+  const [esop, setEsop]   = useState(recommended.esop);
+  const [notes, setNotes] = useState("");
+  const [generating, setGenerating] = useState(false);
+
+  const total = base + bonus;
+  const inBand = total >= recommended.band.min && total <= recommended.band.max;
+  const overBand = total > recommended.band.max;
+
+  const handleSubmit = () => {
+    setGenerating(true);
+    setTimeout(() => { setGenerating(false); onSubmit({ base, bonus, esop, notes }); }, 1200);
+  };
+
+  return (
+    <div className="p-8 space-y-6 max-w-4xl">
+      <button onClick={onBack} className="text-sm text-slate-500 hover:text-slate-900 inline-flex items-center gap-1">
+        <ChevronRight className="w-4 h-4 rotate-180" />Back
+      </button>
+
+      <div>
+        <div className="text-xs font-semibold text-violet-600 uppercase tracking-widest mb-1 flex items-center gap-2">
+          <Sparkles className="w-3 h-3" />New Offer
+        </div>
+        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{candidate.name}</h1>
+        <p className="text-sm text-slate-500 mt-1">{req?.title} · {req?.project} · AI-recommended comp pre-filled below</p>
+      </div>
+
+      {/* AI rationale */}
+      <Card className="p-5 bg-gradient-to-br from-indigo-50 via-violet-50 to-fuchsia-50 border-indigo-200">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center shrink-0">
+            <Sparkles className="w-4 h-4 text-white" />
+          </div>
+          <div className="flex-1">
+            <div className="font-bold text-slate-900 mb-2">AI Compensation Recommendation</div>
+            <ul className="space-y-1">
+              {recommended.rationale.map((r, i) => (
+                <li key={i} className="text-sm text-slate-700 flex gap-2"><Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />{r}</li>
+              ))}
+              {recommended.risks.map((r, i) => (
+                <li key={`r-${i}`} className="text-sm text-slate-700 flex gap-2"><AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />{r}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </Card>
+
+      {/* Comp inputs */}
+      <Card className="p-6">
+        <h3 className="font-bold text-slate-900 mb-5">Compensation Components</h3>
+        <div className="space-y-5">
+          {[
+            { label: "Base Salary",   key: "base",  val: base,  set: setBase,  min: 4000000, max: 8000000, step: 100000 },
+            { label: "Joining Bonus", key: "bonus", val: bonus, set: setBonus, min: 0,       max: 2000000, step: 50000 },
+            { label: "ESOP (4 years vest)", key: "esop", val: esop, set: setEsop, min: 0, max: 10000000, step: 100000 },
+          ].map(f => (
+            <div key={f.key}>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-semibold text-slate-700">{f.label}</label>
+                <span className="text-base font-bold text-slate-900 tabular-nums">{formatINR(f.val)}</span>
+              </div>
+              <input type="range" min={f.min} max={f.max} step={f.step} value={f.val}
+                onChange={e => f.set(+e.target.value)}
+                className="w-full accent-indigo-600" />
+              <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                <span>{formatINR(f.min)}</span>
+                {f.key === "base" && <span className="text-violet-600 font-semibold">AI: {formatINR(recommended.base)}</span>}
+                <span>{formatINR(f.max)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Total + band check */}
+        <div className="mt-6 p-4 rounded-xl bg-slate-50 border border-slate-200">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Total Year 1 Cash</span>
+            <span className="text-xl font-bold text-slate-900 tabular-nums">{formatINR(total)}</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <Pill tone={inBand ? "emerald" : overBand ? "rose" : "amber"}>
+              {inBand ? "Within band" : overBand ? `${formatINR(total - recommended.band.max)} above band — needs VP approval` : `${formatINR(recommended.band.min - total)} below band`}
+            </Pill>
+            <span className="text-slate-400">Band: {formatINR(recommended.band.min)} — {formatINR(recommended.band.max)}</span>
+          </div>
+        </div>
+      </Card>
+
+      {/* Notes */}
+      <Card className="p-5">
+        <h3 className="font-bold text-slate-900 text-sm mb-3">Internal Notes</h3>
+        <textarea value={notes} onChange={e => setNotes(e.target.value)}
+          placeholder="Justification, negotiation context, special terms..." rows={3}
+          className="w-full px-4 py-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none" />
+      </Card>
+
+      <button onClick={handleSubmit} disabled={generating}
+        className="w-full px-4 py-3 bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 text-white text-sm font-semibold rounded-xl shadow-lg shadow-violet-500/25 disabled:opacity-50 flex items-center justify-center gap-2">
+        {generating ? (
+          <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Submitting for approval...</>
+        ) : (
+          <><FileSignature className="w-4 h-4" />Submit Offer for Approval</>
+        )}
+      </button>
+    </div>
+  );
+};
+
+/* ============================================================
+   OFFER STATUS PANEL — embeds inside RequisitionDetail's Offered stage
+   Lightweight summary that links to full offer detail
+   ============================================================ */
+const OfferStatusPanel = ({ candidate, onOpenOffer }) => {
+  const offer = getOfferRecord(candidate.id);
+  if (!offer) return null;
+  const cfg = offerStatusConfig[offer.status];
+  const StatusIcon = cfg.icon;
+  const total = offer.base + offer.bonus;
+
+  return (
+    <button onClick={() => onOpenOffer(offer.id)}
+      className="w-full mt-2 px-3 py-2 rounded-lg bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-200 hover:border-violet-300 transition flex items-center justify-between gap-2 group">
+      <div className="flex items-center gap-2 text-xs">
+        <FileSignature className="w-3.5 h-3.5 text-violet-600 shrink-0" />
+        <span className="font-semibold text-violet-900">{cfg.label}</span>
+        <span className="text-violet-600">·</span>
+        <span className="font-bold text-slate-900 tabular-nums">{formatINR(total)}</span>
+        {offer.status === "Awaiting Response" && offer.daysToDeadline <= 2 && (
+          <Pill tone="rose"><AlertTriangle className="w-2.5 h-2.5" />{offer.daysToDeadline}d left</Pill>
+        )}
+      </div>
+      <span className="text-[10px] font-semibold text-violet-700 group-hover:text-violet-900 transition shrink-0 flex items-center gap-0.5">
+        Manage Offer<ChevronRight className="w-3 h-3" />
+      </span>
+    </button>
+  );
+};
+
 };
 
 /* ============================================================
@@ -1257,6 +2174,8 @@ const PersonaBanner = ({ persona }) => {
 
 /* ── RECRUITER DASHBOARD (existing Dashboard, persona-aware alerts) ── */
 const RecruiterDashboard = ({ requisitions, candidates, onOpenReq, onNav }) => {
+  const { filters } = useOrgFilters();
+  const filterCount = countActiveFilters(filters);
   const totals = useMemo(() => requisitions.reduce((a, r) => ({ sourced: a.sourced + r.sourced, screened: a.screened + r.screened, shortlisted: a.shortlisted + r.shortlisted, interviewed: a.interviewed + r.interviewed, offered: a.offered + r.offered, hired: a.hired + r.hired }), { sourced: 0, screened: 0, shortlisted: 0, interviewed: 0, offered: 0, hired: 0 }), [requisitions]);
 
   const alerts = [
@@ -1278,7 +2197,10 @@ const RecruiterDashboard = ({ requisitions, candidates, onOpenReq, onNav }) => {
     <div className="p-8 space-y-6">
       <div className="flex items-end justify-between">
         <div>
-          <div className="text-xs font-semibold text-indigo-600 uppercase tracking-widest mb-1">Welcome back, Riya · Recruiter View</div>
+          <div className="text-xs font-semibold text-indigo-600 uppercase tracking-widest mb-1">
+            Welcome back, Riya · Recruiter View
+            {filterCount > 0 && <span className="ml-2 text-amber-600">· {filterCount} scope filter{filterCount > 1 ? "s" : ""} active</span>}
+          </div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Here's what's moving today.</h1>
         </div>
         <GradientButton icon={Plus} onClick={() => onNav("jd-generator")}>New Requisition</GradientButton>
@@ -1365,12 +2287,17 @@ const RecruiterDashboard = ({ requisitions, candidates, onOpenReq, onNav }) => {
 
 /* ── HIRING MANAGER DASHBOARD ── */
 const HiringManagerDashboard = ({ candidates, onOpenReq, onNav }) => {
+  const { filters } = useOrgFilters();
+  const filterCount = countActiveFilters(filters);
   const shortlisted = candidates.filter(c => ["Shortlisted","Interviewed","Offered","Hired"].includes(c.stage));
   const recColor = { Proceed: "emerald", Hold: "amber", Reject: "rose" };
   return (
     <div className="p-8 space-y-6">
       <div>
-        <div className="text-xs font-semibold text-violet-600 uppercase tracking-widest mb-1">Hiring Manager View</div>
+        <div className="text-xs font-semibold text-violet-600 uppercase tracking-widest mb-1">
+          Hiring Manager View
+          {filterCount > 0 && <span className="ml-2 text-amber-600">· {filterCount} scope filter{filterCount > 1 ? "s" : ""} active</span>}
+        </div>
         <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Your shortlisted candidates</h1>
         <div className="text-sm text-slate-500 mt-1">Showing candidates at Shortlisted stage and beyond · {shortlisted.length} in scope</div>
       </div>
@@ -1463,6 +2390,14 @@ const HiringManagerDashboard = ({ candidates, onOpenReq, onNav }) => {
 
 /* ── DELIVERY MANAGER DASHBOARD ── */
 const DeliveryManagerDashboard = () => {
+  const { filters } = useOrgFilters();
+  const filteredProjects = useMemo(() => {
+    if (!filters || Object.keys(filters).length === 0) return projectRiskData;
+    return projectRiskData.filter(p =>
+      Object.entries(filters).every(([key, vals]) => !vals || vals.length === 0 || vals.includes(p[key]))
+    );
+  }, [filters]);
+
   const riskColor = { high: "rose", medium: "amber", low: "emerald" };
   const riskBg    = { high: "bg-rose-50 border-rose-200", medium: "bg-amber-50 border-amber-200", low: "bg-emerald-50 border-emerald-200" };
   const riskLabel = { high: "text-rose-700", medium: "text-amber-700", low: "text-emerald-700" };
@@ -1473,16 +2408,27 @@ const DeliveryManagerDashboard = () => {
       <div>
         <div className="text-xs font-semibold text-fuchsia-600 uppercase tracking-widest mb-1">Delivery Manager View</div>
         <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Project staffing readiness</h1>
-        <div className="text-sm text-slate-500 mt-1">Time to fill · skill coverage · project risk across all active engagements</div>
+        <div className="text-sm text-slate-500 mt-1">
+          Time to fill · skill coverage · project risk
+          {filteredProjects.length !== projectRiskData.length && <span className="text-fuchsia-600 font-semibold"> · {filteredProjects.length} of {projectRiskData.length} projects in scope</span>}
+        </div>
       </div>
 
+      {filteredProjects.length === 0 ? (
+        <Card className="p-12 text-center">
+          <Filter className="w-10 h-10 mx-auto text-slate-200 mb-3" />
+          <div className="font-semibold text-slate-600">No projects match current filter</div>
+          <div className="text-sm text-slate-400 mt-1">Try clearing one or more filters at the top of the page.</div>
+        </Card>
+      ) : (
+      <>
       {/* Summary metrics */}
       <div className="grid grid-cols-4 gap-4">
         {[
-          { label: "Roles at Risk",         value: projectRiskData.filter(p => p.risk === "high").length,   sub: "Overdue or blocked",     color: "from-rose-500 to-pink-500",       icon: AlertCircle },
-          { label: "Avg Days Open",          value: `${Math.round(projectRiskData.reduce((a,p)=>a+p.daysOpen,0)/projectRiskData.length)}d`, sub: "vs 22d target", color: "from-fuchsia-500 to-violet-500", icon: Clock },
-          { label: "Skill Coverage Avg",     value: `${Math.round(projectRiskData.reduce((a,p)=>a+p.coverage,0)/projectRiskData.length)}%`, sub: "Across open roles", color: "from-indigo-500 to-blue-500",  icon: Target },
-          { label: "Openings Unfilled",      value: projectRiskData.reduce((a,p)=>a+(p.openings-p.filled),0), sub: "Total positions",       color: "from-amber-500 to-orange-500",    icon: Briefcase },
+          { label: "Roles at Risk",         value: filteredProjects.filter(p => p.risk === "high").length,   sub: "Overdue or blocked",     color: "from-rose-500 to-pink-500",       icon: AlertCircle },
+          { label: "Avg Days Open",          value: `${Math.round(filteredProjects.reduce((a,p)=>a+p.daysOpen,0)/filteredProjects.length)}d`, sub: "vs 22d target", color: "from-fuchsia-500 to-violet-500", icon: Clock },
+          { label: "Skill Coverage Avg",     value: `${Math.round(filteredProjects.reduce((a,p)=>a+p.coverage,0)/filteredProjects.length)}%`, sub: "Across open roles", color: "from-indigo-500 to-blue-500",  icon: Target },
+          { label: "Openings Unfilled",      value: filteredProjects.reduce((a,p)=>a+(p.openings-p.filled),0), sub: "Total positions",       color: "from-amber-500 to-orange-500",    icon: Briefcase },
         ].map((m) => {
           const Icon = m.icon;
           return (
@@ -1502,7 +2448,7 @@ const DeliveryManagerDashboard = () => {
       {/* Project risk cards */}
       <div className="space-y-4">
         <h2 className="text-lg font-bold text-slate-900">Project Readiness by Role</h2>
-        {projectRiskData.map((p, i) => {
+        {filteredProjects.map((p, i) => {
           const ttfPct = Math.min(100, (p.daysOpen / p.ttfTarget) * 100);
           return (
             <Card key={i} className={`p-5 border ${p.risk === "high" ? "border-rose-200 shadow-rose-100 shadow-md" : "border-slate-200"}`}>
@@ -1560,19 +2506,39 @@ const DeliveryManagerDashboard = () => {
           );
         })}
       </div>
+      </>
+      )}
     </div>
   );
 };
 
 /* ── HR LEADER DASHBOARD ── */
 const HRLeaderDashboard = () => {
+  const { filters } = useOrgFilters();
+  const filterCount = countActiveFilters(filters);
+  const scopeLabel = filterCount === 0 ? "Across the entire organization" : `Filtered scope · ${filterCount} active filter${filterCount > 1 ? "s" : ""}`;
+
   return (
     <div className="p-8 space-y-6">
       <div>
         <div className="text-xs font-semibold text-amber-600 uppercase tracking-widest mb-1">HR Leader View</div>
         <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Hiring performance overview</h1>
-        <div className="text-sm text-slate-500 mt-1">Funnel efficiency · source ROI · hiring health across all requisitions</div>
+        <div className="text-sm text-slate-500 mt-1">
+          Funnel efficiency · source ROI · hiring health
+          <span className={filterCount > 0 ? "text-amber-600 font-semibold" : ""}> · {scopeLabel}</span>
+        </div>
       </div>
+
+      {filterCount > 0 && (
+        <Card className="p-4 bg-amber-50/40 border-amber-200">
+          <div className="flex items-start gap-2 text-xs text-amber-800">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <div>
+              <strong>Note:</strong> Funnel benchmarks and source-mix percentages shown below are organization-wide averages. To see scope-specific metrics, use the requisitions and offers views.
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Top KPIs */}
       <div className="grid grid-cols-4 gap-4">
@@ -1705,6 +2671,7 @@ const Sidebar = ({ active, onNav, persona }) => {
     { key: "sourcing",      label: "Sourcing",    icon: Users },
     { key: "screening-hub", label: "Screening",   icon: MessageSquare, badge: "AI" },
     { key: "interviews",    label: "Interviews",  icon: Activity,      badge: "AI" },
+    { key: "offers",        label: "Offers",      icon: FileSignature, badge: "AI" },
     { key: "admin",         label: "Admin",       icon: Settings },
   ];
   const allowed = PERSONAS[persona]?.navItems || ALL_ITEMS.map(i => i.key);
@@ -2023,10 +2990,19 @@ const Dashboard = ({ requisitions, onOpenReq, onNav }) => {
 };
 
 /* ---------- REQUISITIONS LIST ---------- */
-const RequisitionsList = ({ requisitions, onOpen, onNav }) => (
+const RequisitionsList = ({ requisitions, onOpen, onNav }) => {
+  const { filters } = useOrgFilters();
+  const filterCount = countActiveFilters(filters);
+  return (
   <div className="p-8 space-y-6">
     <div className="flex items-end justify-between">
-      <div><h1 className="text-3xl font-bold text-slate-900 tracking-tight">Requisitions</h1><div className="text-sm text-slate-500 mt-1">{requisitions.length} total · {requisitions.filter(r => r.status === "Active").length} active</div></div>
+      <div>
+        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Requisitions</h1>
+        <div className="text-sm text-slate-500 mt-1">
+          {requisitions.length} total · {requisitions.filter(r => r.status === "Active").length} active
+          {filterCount > 0 && <span className="text-indigo-600 font-semibold"> · scope-filtered</span>}
+        </div>
+      </div>
       <div className="flex gap-2"><GradientButton variant="secondary" icon={Filter}>Filter</GradientButton><GradientButton icon={Plus} onClick={() => onNav("jd-generator")}>New Requisition</GradientButton></div>
     </div>
     <Card>
@@ -2047,7 +3023,8 @@ const RequisitionsList = ({ requisitions, onOpen, onNav }) => (
       </table>
     </Card>
   </div>
-);
+  );
+};
 
 /* ---------- AI INSIGHTS DATA ---------- */
 
@@ -2233,7 +3210,7 @@ const AiHiringSummary = ({ req, showInsights, onToggle }) => {
 /* ---------- REQUISITION DETAIL — redesigned pipeline view ---------- */
 
 /* ---------- REQUISITION DETAIL — unified stage cards ---------- */
-const RequisitionDetail = ({ req, candidates, onBack, onUpdateCandidate, onOpenCandidate }) => {
+const RequisitionDetail = ({ req, candidates, onBack, onUpdateCandidate, onOpenCandidate, onOpenOffer }) => {
   const reqCandidates = candidates.filter(c => c.reqId === req.id);
   const [openStages, setOpenStages]     = useState(["Interviewed", "Offered"]);
   const [expandedInsights, setExpandedInsights] = useState({});
@@ -2434,33 +3411,38 @@ const RequisitionDetail = ({ req, candidates, onBack, onUpdateCandidate, onOpenC
                         ) : (
                           <div className="space-y-1.5">
                             {[...stageCands].sort((a, b) => b.match - a.match).map(cand => (
-                              <div
-                                key={cand.id}
-                                draggable
-                                onDragStart={() => setDraggedId(cand.id)}
-                                onClick={() => onOpenCandidate(cand.id)}
-                                className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-slate-100 hover:border-slate-300 hover:bg-slate-50 cursor-pointer transition group"
-                              >
-                                {/* Avatar */}
-                                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 ${cand.match >= 90 ? "bg-emerald-500" : cand.match >= 80 ? "bg-indigo-500" : "bg-slate-400"}`}>
-                                  {cand.name.split(" ").map(n => n[0]).join("")}
-                                </div>
-                                {/* Name + meta */}
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-sm font-semibold text-slate-900 truncate">{cand.name}</div>
-                                  <div className="text-xs text-slate-400 truncate">{cand.exp} yrs · {cand.source}</div>
-                                </div>
-                                {/* Score */}
-                                <div className="shrink-0 flex items-center gap-2">
-                                  <span className="text-xs font-bold text-slate-700 tabular-nums w-8 text-right">{cand.match}%</span>
-                                  <div className="w-14 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                    <div
-                                      className={`h-full rounded-full ${cand.match >= 90 ? "bg-emerald-500" : cand.match >= 80 ? "bg-indigo-400" : "bg-slate-400"}`}
-                                      style={{ width: `${cand.match}%` }}
-                                    />
+                              <div key={cand.id}>
+                                <div
+                                  draggable
+                                  onDragStart={() => setDraggedId(cand.id)}
+                                  onClick={() => onOpenCandidate(cand.id)}
+                                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-slate-100 hover:border-slate-300 hover:bg-slate-50 cursor-pointer transition group"
+                                >
+                                  {/* Avatar */}
+                                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 ${cand.match >= 90 ? "bg-emerald-500" : cand.match >= 80 ? "bg-indigo-500" : "bg-slate-400"}`}>
+                                    {cand.name.split(" ").map(n => n[0]).join("")}
                                   </div>
+                                  {/* Name + meta */}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-sm font-semibold text-slate-900 truncate">{cand.name}</div>
+                                    <div className="text-xs text-slate-400 truncate">{cand.exp} yrs · {cand.source}</div>
+                                  </div>
+                                  {/* Score */}
+                                  <div className="shrink-0 flex items-center gap-2">
+                                    <span className="text-xs font-bold text-slate-700 tabular-nums w-8 text-right">{cand.match}%</span>
+                                    <div className="w-14 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                      <div
+                                        className={`h-full rounded-full ${cand.match >= 90 ? "bg-emerald-500" : cand.match >= 80 ? "bg-indigo-400" : "bg-slate-400"}`}
+                                        style={{ width: `${cand.match}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                  <GripVertical className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-400 shrink-0" />
                                 </div>
-                                <GripVertical className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-400 shrink-0" />
+                                {/* Inline offer status — only for Offered stage candidates with active offers */}
+                                {stage === "Offered" && getOfferRecord(cand.id) && onOpenOffer && (
+                                  <OfferStatusPanel candidate={cand} onOpenOffer={onOpenOffer} />
+                                )}
                               </div>
                             ))}
                           </div>
@@ -3308,6 +4290,7 @@ const Admin = () => {
     { key: "weights", label: "Scoring Weights", icon: Sliders },
     { key: "sources", label: "Sourcing Channels", icon: Database },
     { key: "templates", label: "JD Templates", icon: FileText },
+    { key: "filters", label: "Filter Dimensions", icon: Filter },
   ];
 
   const totalWeight = Object.values(weights).reduce((a, b) => a + b, 0);
@@ -3391,7 +4374,116 @@ const Admin = () => {
           </div>
         </Card>
       )}
+
+      {tab === "filters" && <FilterDimensionsAdmin />}
     </div>
+  );
+};
+
+/* ---------- FILTER DIMENSIONS ADMIN PANEL ---------- */
+const FilterDimensionsAdmin = () => {
+  const ctx = useContext(OrgFilterContext);
+  if (!ctx) return null;
+  const { dimensions, setDimensions } = ctx;
+  const [editingDim, setEditingDim] = useState(null);
+  const [newValue, setNewValue] = useState("");
+
+  const toggleDim = (key) => {
+    setDimensions(dimensions.map(d => d.key === key ? { ...d, enabled: !d.enabled } : d));
+  };
+
+  const removeValue = (dimKey, val) => {
+    setDimensions(dimensions.map(d => d.key === dimKey ? { ...d, values: d.values.filter(v => v !== val) } : d));
+  };
+
+  const addValue = (dimKey) => {
+    if (!newValue.trim()) return;
+    setDimensions(dimensions.map(d => d.key === dimKey ? { ...d, values: [...d.values, newValue.trim()] } : d));
+    setNewValue("");
+  };
+
+  return (
+    <Card className="p-6">
+      <div className="flex items-center justify-between mb-1">
+        <div>
+          <h2 className="font-bold text-slate-900">Filter Dimensions</h2>
+          <div className="text-xs text-slate-500 mt-0.5">Configure org-level filter dimensions used across dashboards & lifecycles.</div>
+        </div>
+        <Pill tone="indigo">{dimensions.filter(d => d.enabled).length} of {dimensions.length} active</Pill>
+      </div>
+
+      <div className="mt-5 mb-4 p-3 rounded-xl bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-200 text-xs text-slate-700">
+        <strong>How filters work:</strong> When users set filters in the bar at the top of every page, all data on dashboards, requisition lists, candidate views, and offers will be filtered to match. In production, dimension values would sync from your HRIS / org directory.
+      </div>
+
+      <div className="space-y-3">
+        {dimensions.map(dim => {
+          const Icon = iconMap[dim.icon] || Filter;
+          const isEditing = editingDim === dim.key;
+          return (
+            <div key={dim.key} className={`rounded-xl border ${dim.enabled ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50/40"}`}>
+              {/* Header row */}
+              <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100">
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${dim.enabled ? "bg-gradient-to-br from-indigo-500 to-violet-500" : "bg-slate-200"}`}>
+                  <Icon className={`w-4 h-4 ${dim.enabled ? "text-white" : "text-slate-400"}`} />
+                </div>
+                <div className="flex-1">
+                  <div className={`font-semibold text-sm ${dim.enabled ? "text-slate-900" : "text-slate-500"}`}>{dim.label}</div>
+                  <div className="text-[11px] text-slate-400">{dim.values.length} value{dim.values.length !== 1 ? "s" : ""} · key: <code className="bg-slate-100 px-1 rounded">{dim.key}</code></div>
+                </div>
+                <button
+                  onClick={() => setEditingDim(isEditing ? null : dim.key)}
+                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded transition"
+                >
+                  {isEditing ? "Done" : "Edit values"}
+                </button>
+                <button
+                  onClick={() => toggleDim(dim.key)}
+                  className={`relative w-11 h-6 rounded-full transition shrink-0 ${dim.enabled ? "bg-indigo-600" : "bg-slate-200"}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition ${dim.enabled ? "translate-x-5" : ""}`} />
+                </button>
+              </div>
+
+              {/* Values editor */}
+              {isEditing && (
+                <div className="px-4 py-3">
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {dim.values.map(v => (
+                      <span key={v} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        {v}
+                        <button onClick={() => removeValue(dim.key, v)} className="hover:text-rose-600 transition">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                    {dim.values.length === 0 && <span className="text-xs text-slate-400 italic">No values yet — add one below.</span>}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={newValue}
+                      onChange={e => setNewValue(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && addValue(dim.key)}
+                      placeholder={`Add a new ${dim.label.toLowerCase()} value...`}
+                      className="flex-1 px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    />
+                    <button onClick={() => addValue(dim.key)} className="px-3 py-2 bg-slate-900 text-white text-xs font-semibold rounded-lg hover:bg-slate-700">
+                      Add
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-5 p-4 rounded-xl border border-dashed border-slate-300 text-center">
+        <p className="text-xs text-slate-500">
+          <strong>Tip:</strong> Toggle dimensions off here to hide them from the filter bar without deleting their values.
+        </p>
+      </div>
+    </Card>
   );
 };
 
@@ -3453,6 +4545,20 @@ export default function HumAIne() {
   const [candidates, setCandidates] = useState(seedCandidates);
   const [copilotOpen, setCopilotOpen] = useState(false);
 
+  // ── Org filter state ──
+  const [filterDimensions, setFilterDimensions] = useState(DEFAULT_FILTER_DIMENSIONS);
+  const [orgFilters, setOrgFilters] = useState({}); // { bu: [...], department: [...], ... }
+
+  // Filter dataset based on active org filters — memoised so child screens get stable refs
+  const filteredRequisitions = useMemo(
+    () => applyOrgFilters(requisitions, orgFilters),
+    [requisitions, orgFilters]
+  );
+  const filteredCandidates = useMemo(
+    () => applyOrgFiltersToCandidates(candidates, requisitions, orgFilters),
+    [candidates, requisitions, orgFilters]
+  );
+
   const updateCandidate = (id, patch) => setCandidates((prev) => prev.map(c => c.id === id ? { ...c, ...patch } : c));
   const currentCandidate = view.candidateId ? candidates.find(c => c.id === view.candidateId) : null;
   const currentReq = view.reqId ? requisitions.find(r => r.id === view.reqId) : null;
@@ -3468,40 +4574,67 @@ export default function HumAIne() {
   const openInterviewKit = (cand) => setView({ name: "interview-kit", candidateId: cand.id, from: view.name, reqId: view.reqId });
   const openInterviewFeedback = (cand) => setView({ name: "interview-feedback", candidateId: cand.id, from: view.name, reqId: view.reqId });
 
+  // Offer navigation helpers
+  const openOfferDetail = (offerId) => setView({ name: "offer-detail", offerId, from: view.name, reqId: view.reqId, candidateId: view.candidateId });
+  const openNewOffer    = (cand)    => setView({ name: "new-offer", candidateId: cand.id, from: view.name, reqId: view.reqId });
+
   const sidebarActive =
     view.name === "req-detail"   ? "requisitions" :
     view.name === "candidate" && view.from === "interviews" ? "interviews" :
+    view.name === "candidate" && view.from === "offers" ? "offers" :
     view.name === "candidate" && view.from !== "screening-hub" ? "sourcing" :
     view.name === "candidate" && view.from === "screening-hub" ? "screening-hub" :
     view.name === "screening"    ? "screening-hub" :
     view.name === "interview-kit" || view.name === "interview-feedback" ? "interviews" :
+    view.name === "offer-detail" || view.name === "new-offer" ? "offers" :
     view.name;
 
   const renderDashboard = () => {
     switch (persona) {
-      case "hiringManager":  return <HiringManagerDashboard  candidates={candidates} onOpenReq={(id) => setView({ name: "req-detail", reqId: id })} onNav={nav} onOpenKit={openInterviewKit} onOpenFeedback={openInterviewFeedback} />;
+      case "hiringManager":  return <HiringManagerDashboard  candidates={filteredCandidates} onOpenReq={(id) => setView({ name: "req-detail", reqId: id })} onNav={nav} onOpenKit={openInterviewKit} onOpenFeedback={openInterviewFeedback} />;
       case "deliveryManager":return <DeliveryManagerDashboard />;
       case "hrLeader":       return <HRLeaderDashboard />;
       case "admin":          return <AdminDashboard onNav={nav} />;
-      default:               return <RecruiterDashboard requisitions={requisitions} candidates={candidates} onOpenReq={(id) => setView({ name: "req-detail", reqId: id })} onNav={nav} />;
+      default:               return <RecruiterDashboard requisitions={filteredRequisitions} candidates={filteredCandidates} onOpenReq={(id) => setView({ name: "req-detail", reqId: id })} onNav={nav} />;
     }
   };
 
   return (
     <PersonaContext.Provider value={persona}>
-      <div className="min-h-screen bg-slate-50 flex" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>
-        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-        <Sidebar active={sidebarActive} onNav={nav} persona={persona} />
-        <main className="flex-1 flex flex-col min-w-0" style={{ transition: "margin-left 220ms cubic-bezier(0.4,0,0.2,1)" }}>
-          <TopBar onCopilot={() => setCopilotOpen(true)} persona={persona} onPersonaChange={handlePersonaChange} />
-          <PersonaBanner persona={persona} />
-          <div className="flex-1">
-            {view.name === "dashboard"    && renderDashboard()}
-            {view.name === "requisitions" && <RequisitionsList requisitions={requisitions} onOpen={(id) => setView({ name: "req-detail", reqId: id })} onNav={nav} />}
-            {view.name === "req-detail"   && currentReq && <RequisitionDetail req={currentReq} candidates={candidates} onBack={() => nav("requisitions")} onUpdateCandidate={updateCandidate} onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "req-detail", reqId: view.reqId })} />}
-            {view.name === "jd-generator" && <JDGenerator onCreate={() => nav("requisitions")} />}
-            {view.name === "sourcing"     && <Sourcing requisitions={requisitions} candidates={candidates} onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "sourcing" })} />}
-            {view.name === "interviews"   && <InterviewHub candidates={candidates} requisitions={requisitions} onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "interviews" })} setView={setView} />}
+      <OrgFilterContext.Provider value={{ filters: orgFilters, dimensions: filterDimensions, setFilters: setOrgFilters, setDimensions: setFilterDimensions }}>
+        <div className="min-h-screen bg-slate-50 flex" style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" }}>
+          <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+          <Sidebar active={sidebarActive} onNav={nav} persona={persona} />
+          <main className="flex-1 flex flex-col min-w-0" style={{ transition: "margin-left 220ms cubic-bezier(0.4,0,0.2,1)" }}>
+            <TopBar onCopilot={() => setCopilotOpen(true)} persona={persona} onPersonaChange={handlePersonaChange} />
+            <PersonaBanner persona={persona} />
+            <OrgFilterBar dimensions={filterDimensions} filters={orgFilters} onChange={setOrgFilters} />
+            <div className="flex-1">
+              {view.name === "dashboard"    && renderDashboard()}
+              {view.name === "requisitions" && <RequisitionsList requisitions={filteredRequisitions} onOpen={(id) => setView({ name: "req-detail", reqId: id })} onNav={nav} />}
+              {view.name === "req-detail"   && currentReq && <RequisitionDetail req={currentReq} candidates={candidates} onBack={() => nav("requisitions")} onUpdateCandidate={updateCandidate} onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "req-detail", reqId: view.reqId })} onOpenOffer={openOfferDetail} />}
+              {view.name === "jd-generator" && <JDGenerator onCreate={() => nav("requisitions")} />}
+              {view.name === "sourcing"     && <Sourcing requisitions={filteredRequisitions} candidates={filteredCandidates} onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "sourcing" })} />}
+              {view.name === "interviews"   && <InterviewHub candidates={filteredCandidates} requisitions={filteredRequisitions} onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "interviews" })} setView={setView} />}
+              {view.name === "offers"       && <OffersHub candidates={filteredCandidates} requisitions={filteredRequisitions} setView={setView} />}
+              {view.name === "offer-detail" && (() => {
+              const offer = Object.values(offerRecords).find(o => o.id === view.offerId);
+              if (!offer) return null;
+              const cand = candidates.find(c => c.id === offer.candidateId);
+              const req  = requisitions.find(r => r.id === offer.reqId);
+              return <OfferDetail offer={offer} candidate={cand} req={req}
+                onBack={() => view.from === "req-detail" ? setView({ name: "req-detail", reqId: view.reqId }) : view.from === "candidate" ? setView({ name: "candidate", candidateId: view.candidateId, from: "offers", reqId: view.reqId }) : nav("offers")}
+                onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "offers" })}
+                onUpdateStatus={() => {}} />;
+            })()}
+            {view.name === "new-offer"    && currentCandidate && (
+              <NewOfferForm
+                candidate={currentCandidate}
+                req={requisitions.find(r => r.id === currentCandidate.reqId)}
+                onBack={() => setView({ name: "candidate", candidateId: view.candidateId, from: view.from, reqId: view.reqId })}
+                onSubmit={() => setView({ name: "candidate", candidateId: view.candidateId, from: view.from, reqId: view.reqId })}
+              />
+            )}
             {view.name === "interview-kit" && currentCandidate && (
               <div className="p-8 max-w-5xl">
                 <button onClick={() => view.from ? setView({ name: view.from, candidateId: view.candidateId, reqId: view.reqId }) : nav("interviews")} className="text-sm text-slate-500 hover:text-slate-900 inline-flex items-center gap-1 mb-6"><ChevronRight className="w-4 h-4 rotate-180" />Back</button>
@@ -3514,14 +4647,15 @@ export default function HumAIne() {
                 <FeedbackForm candidate={currentCandidate} round={null} onSubmit={() => setView({ name: "candidate", candidateId: view.candidateId, from: view.from, reqId: view.reqId })} onBack={() => setView({ name: "candidate", candidateId: view.candidateId, from: view.from, reqId: view.reqId })} />
               </div>
             )}
-            {view.name === "screening-hub"&& <ScreeningHub candidates={candidates} onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "screening-hub" })} onStartScreening={(id) => setView({ name: "screening", candidateId: id, from: "screening-hub" })} />}
-            {view.name === "candidate"    && currentCandidate && <CandidateDetail candidate={currentCandidate} onBack={() => { if (view.from === "req-detail") setView({ name: "req-detail", reqId: view.reqId }); else if (view.from === "screening-hub") nav("screening-hub"); else if (view.from === "interviews") nav("interviews"); else nav("sourcing"); }} onScreen={() => setView({ name: "screening", candidateId: view.candidateId, from: view.from, reqId: view.reqId })} onOpenKit={openInterviewKit} onOpenFeedback={openInterviewFeedback} />}
+            {view.name === "screening-hub"&& <ScreeningHub candidates={filteredCandidates} onOpenCandidate={(id) => setView({ name: "candidate", candidateId: id, from: "screening-hub" })} onStartScreening={(id) => setView({ name: "screening", candidateId: id, from: "screening-hub" })} />}
+            {view.name === "candidate"    && currentCandidate && <CandidateDetail candidate={currentCandidate} onBack={() => { if (view.from === "req-detail") setView({ name: "req-detail", reqId: view.reqId }); else if (view.from === "screening-hub") nav("screening-hub"); else if (view.from === "interviews") nav("interviews"); else if (view.from === "offers") nav("offers"); else nav("sourcing"); }} onScreen={() => setView({ name: "screening", candidateId: view.candidateId, from: view.from, reqId: view.reqId })} onOpenKit={openInterviewKit} onOpenFeedback={openInterviewFeedback} />}
             {view.name === "screening"    && currentCandidate && <Screening candidate={currentCandidate} onBack={() => { if (view.from === "screening-hub") nav("screening-hub"); else setView({ name: "candidate", candidateId: view.candidateId, from: view.from, reqId: view.reqId }); }} />}
             {view.name === "admin"        && <Admin />}
           </div>
         </main>
         <CopilotDrawer open={copilotOpen} onClose={() => setCopilotOpen(false)} />
       </div>
+    </OrgFilterContext.Provider>
     </PersonaContext.Provider>
   );
 }
