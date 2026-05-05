@@ -2851,10 +2851,560 @@ const Sidebar = ({ active, onNav, persona }) => {
   );
 };
 
+
+/* ============================================================
+   TUTORIAL — interactive walkthrough of the HumAIne prototype
+   8 steps, each with an SVG diagram and "Try it now" deep links.
+   ============================================================ */
+
+const TutorialIcon = ({ children, className = "" }) => (
+  <div className={`w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 flex items-center justify-center text-white shrink-0 ${className}`}>{children}</div>
+);
+
+/* SVG diagrams keyed by step */
+const TutorialDiagrams = {
+  /* Step 1 — Welcome / overview */
+  overview: () => (
+    <svg viewBox="0 0 600 320" className="w-full h-full">
+      <defs>
+        <linearGradient id="brandGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#6366f1" /><stop offset="50%" stopColor="#8b5cf6" /><stop offset="100%" stopColor="#d946ef" />
+        </linearGradient>
+      </defs>
+      <rect x="200" y="80" width="200" height="160" rx="20" fill="url(#brandGrad)" />
+      <text x="300" y="155" textAnchor="middle" fill="white" fontSize="32" fontWeight="800">HumAIne</text>
+      <text x="300" y="180" textAnchor="middle" fill="white" fontSize="11" fontWeight="600" opacity="0.85">AI RECRUITMENT PLATFORM</text>
+      {[
+        { x: 80,  y: 50,  label: "AI JD" },
+        { x: 470, y: 50,  label: "Sourcing" },
+        { x: 50,  y: 160, label: "Pipeline" },
+        { x: 510, y: 160, label: "Screening" },
+        { x: 80,  y: 270, label: "Interview" },
+        { x: 470, y: 270, label: "Offers" },
+      ].map((n, i) => (
+        <g key={i}>
+          <circle cx={n.x} cy={n.y} r="26" fill="white" stroke="#c7d2fe" strokeWidth="2" />
+          <text x={n.x} y={n.y + 4} textAnchor="middle" fontSize="10" fontWeight="700" fill="#4338ca">{n.label}</text>
+          <line x1={n.x} y1={n.y} x2={300} y2={160} stroke="#c7d2fe" strokeWidth="1" strokeDasharray="3,3" />
+        </g>
+      ))}
+    </svg>
+  ),
+
+  /* Step 2 — Personas */
+  personas: () => (
+    <svg viewBox="0 0 600 320" className="w-full h-full">
+      <text x="300" y="25" textAnchor="middle" fill="#475569" fontSize="11" fontWeight="700" letterSpacing="2">VIEW AS — 5 PERSONAS</text>
+      {[
+        { x: 60,  label: "Recruiter",       avatar: "RC", c: "#6366f1", desc: "Full pipeline" },
+        { x: 175, label: "Hiring Mgr",      avatar: "HM", c: "#8b5cf6", desc: "Shortlist + feedback" },
+        { x: 290, label: "Delivery Mgr",    avatar: "DM", c: "#d946ef", desc: "Project risk" },
+        { x: 405, label: "HR Leader",       avatar: "HL", c: "#f59e0b", desc: "Org metrics" },
+        { x: 520, label: "Admin",           avatar: "AD", c: "#475569", desc: "Configure" },
+      ].map((p, i) => (
+        <g key={i}>
+          <rect x={p.x - 40} y={70} width="80" height="120" rx="12" fill="white" stroke={p.c} strokeWidth="2" />
+          <circle cx={p.x} cy={100} r="20" fill={p.c} />
+          <text x={p.x} y={105} textAnchor="middle" fill="white" fontSize="12" fontWeight="800">{p.avatar}</text>
+          <text x={p.x} y={140} textAnchor="middle" fill="#1e293b" fontSize="11" fontWeight="700">{p.label}</text>
+          <text x={p.x} y={158} textAnchor="middle" fill="#64748b" fontSize="9">{p.desc}</text>
+        </g>
+      ))}
+      <text x="300" y="240" textAnchor="middle" fill="#1e293b" fontSize="13" fontWeight="600">Each persona sees a different dashboard,</text>
+      <text x="300" y="258" textAnchor="middle" fill="#1e293b" fontSize="13" fontWeight="600">tailored navigation, and prioritized data.</text>
+      <text x="300" y="285" textAnchor="middle" fill="#6366f1" fontSize="11" fontWeight="700">Switch personas using the dropdown in the top bar →</text>
+    </svg>
+  ),
+
+  /* Step 3 — Lifecycle pipeline */
+  lifecycle: () => (
+    <svg viewBox="0 0 600 320" className="w-full h-full">
+      <text x="300" y="25" textAnchor="middle" fill="#475569" fontSize="11" fontWeight="700" letterSpacing="2">RECRUITMENT LIFECYCLE</text>
+      {[
+        { stage: "Sourced",     x: 50,  c: "#94a3b8", count: 47 },
+        { stage: "Screened",    x: 145, c: "#64748b", count: 28 },
+        { stage: "Shortlisted", x: 240, c: "#6366f1", count: 14 },
+        { stage: "Interviewed", x: 335, c: "#8b5cf6", count: 7  },
+        { stage: "Offered",     x: 430, c: "#f59e0b", count: 2  },
+        { stage: "Hired",       x: 525, c: "#10b981", count: 1  },
+      ].map((s, i, arr) => (
+        <g key={s.stage}>
+          {i < arr.length - 1 && (
+            <path d={`M ${s.x + 35} 100 L ${arr[i+1].x - 35} 100`} stroke="#cbd5e1" strokeWidth="2" strokeDasharray="4,3" markerEnd="url(#arr)" />
+          )}
+          <circle cx={s.x} cy={100} r="24" fill={s.c} />
+          <text x={s.x} y={104} textAnchor="middle" fill="white" fontSize="13" fontWeight="800">{s.count}</text>
+          <text x={s.x} y={150} textAnchor="middle" fill="#334155" fontSize="10" fontWeight="700">{s.stage}</text>
+        </g>
+      ))}
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#cbd5e1" />
+        </marker>
+      </defs>
+      <rect x="60" y="200" width="480" height="90" rx="10" fill="#f1f5f9" stroke="#e2e8f0" />
+      <text x="80" y="225" fill="#1e293b" fontSize="12" fontWeight="700">Each stage card shows three things:</text>
+      <text x="80" y="248" fill="#475569" fontSize="11">• Candidates in stage  • AI signals (Insight / Risk / Action)  • Conversion %</text>
+      <text x="80" y="268" fill="#475569" fontSize="11">Drag candidates between stages · click any stage to expand</text>
+    </svg>
+  ),
+
+  /* Step 4 — AI insights signal types */
+  ai: () => (
+    <svg viewBox="0 0 600 320" className="w-full h-full">
+      <text x="300" y="25" textAnchor="middle" fill="#475569" fontSize="11" fontWeight="700" letterSpacing="2">3 TYPES OF AI SIGNALS</text>
+      {[
+        { x: 80,  label: "Insight",        icon: "💡", color: "#6366f1", bg: "#eef2ff",  desc: "Trends, observations,",      desc2: "and patterns in data" },
+        { x: 240, label: "Risk",           icon: "⚠️", color: "#e11d48", bg: "#fff1f2",  desc: "Flags requiring",            desc2: "attention or action" },
+        { x: 400, label: "Recommendation", icon: "✅", color: "#059669", bg: "#ecfdf5",  desc: "Suggested next",             desc2: "actions to take" },
+      ].map((s, i) => (
+        <g key={i}>
+          <rect x={s.x - 60} y={60} width="140" height="180" rx="14" fill={s.bg} stroke={s.color} strokeWidth="2" />
+          <text x={s.x} y={105} textAnchor="middle" fontSize="36">{s.icon}</text>
+          <text x={s.x} y={145} textAnchor="middle" fill={s.color} fontSize="13" fontWeight="800">{s.label}</text>
+          <text x={s.x} y={180} textAnchor="middle" fill="#475569" fontSize="10">{s.desc}</text>
+          <text x={s.x} y={195} textAnchor="middle" fill="#475569" fontSize="10">{s.desc2}</text>
+          <line x1={s.x - 30} y1={215} x2={s.x + 30} y2={215} stroke={s.color} strokeWidth="1" />
+          <text x={s.x} y={230} textAnchor="middle" fill={s.color} fontSize="9" fontWeight="700" letterSpacing="1">EXAMPLE</text>
+        </g>
+      ))}
+      <text x="80" y="280" fill="#475569" fontSize="9" fontWeight="600">"Referrals 3.5×</text>
+      <text x="80" y="292" fill="#475569" fontSize="9" fontWeight="600">conversion rate"</text>
+      <text x="240" y="280" fill="#475569" fontSize="9" fontWeight="600">"Drop-off at</text>
+      <text x="240" y="292" fill="#475569" fontSize="9" fontWeight="600">interview stage"</text>
+      <text x="400" y="280" fill="#475569" fontSize="9" fontWeight="600">"Compress loop</text>
+      <text x="400" y="292" fill="#475569" fontSize="9" fontWeight="600">to 4 rounds"</text>
+    </svg>
+  ),
+
+  /* Step 5 — Filter scope */
+  filter: () => (
+    <svg viewBox="0 0 600 320" className="w-full h-full">
+      <text x="300" y="25" textAnchor="middle" fill="#475569" fontSize="11" fontWeight="700" letterSpacing="2">ORG SCOPE FILTERS</text>
+      <rect x="200" y="50" width="200" height="38" rx="8" fill="#1e293b" />
+      <text x="300" y="73" textAnchor="middle" fill="white" fontSize="12" fontWeight="700">Organization</text>
+      <line x1="300" y1="88" x2="120" y2="120" stroke="#cbd5e1" strokeWidth="2" />
+      <line x1="300" y1="88" x2="300" y2="120" stroke="#cbd5e1" strokeWidth="2" />
+      <line x1="300" y1="88" x2="480" y2="120" stroke="#cbd5e1" strokeWidth="2" />
+      {[
+        { x: 80,  label: "Financial Services", c: "#6366f1" },
+        { x: 260, label: "Enterprise Cloud",   c: "#8b5cf6" },
+        { x: 440, label: "Data & Analytics",   c: "#10b981" },
+      ].map((s, i) => (
+        <g key={i}>
+          <rect x={s.x} y={120} width="80" height="32" rx="6" fill="white" stroke={s.c} strokeWidth="2" />
+          <text x={s.x + 40} y={140} textAnchor="middle" fill={s.c} fontSize="9" fontWeight="700">{s.label}</text>
+          <line x1={s.x + 20} y1={152} x2={s.x + 20} y2={175} stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="2,2" />
+          <line x1={s.x + 60} y1={152} x2={s.x + 60} y2={175} stroke="#cbd5e1" strokeWidth="1.5" strokeDasharray="2,2" />
+          <rect x={s.x} y={175} width="35" height="22" rx="4" fill="#f1f5f9" stroke="#e2e8f0" />
+          <rect x={s.x + 45} y={175} width="35" height="22" rx="4" fill="#f1f5f9" stroke="#e2e8f0" />
+          <text x={s.x + 17} y={189} textAnchor="middle" fill="#475569" fontSize="7" fontWeight="600">Dept A</text>
+          <text x={s.x + 62} y={189} textAnchor="middle" fill="#475569" fontSize="7" fontWeight="600">Dept B</text>
+        </g>
+      ))}
+      <line x1="80" y1="197" x2="80" y2="220" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="2,2" />
+      <rect x="60" y="220" width="40" height="18" rx="3" fill="#fef3c7" stroke="#fbbf24" />
+      <text x="80" y="232" textAnchor="middle" fill="#92400e" fontSize="7" fontWeight="700">Product</text>
+      <rect x="60" y="265" width="480" height="40" rx="8" fill="#fffbeb" stroke="#fde68a" />
+      <text x="300" y="282" textAnchor="middle" fill="#92400e" fontSize="11" fontWeight="700">Filter once at top of page</text>
+      <text x="300" y="297" textAnchor="middle" fill="#92400e" fontSize="10">Every dashboard, list, and metric scopes accordingly</text>
+    </svg>
+  ),
+
+  /* Step 6 — Interview Intelligence */
+  interview: () => (
+    <svg viewBox="0 0 600 320" className="w-full h-full">
+      <text x="300" y="25" textAnchor="middle" fill="#475569" fontSize="11" fontWeight="700" letterSpacing="2">INTERVIEW INTELLIGENCE</text>
+      {[
+        { x: 50,  step: "Generate Kit",   icon: "📋", desc: "AI-curated questions" },
+        { x: 200, step: "Run Interview",  icon: "🎯", desc: "L1 / L2 / HM rounds" },
+        { x: 350, step: "Capture Feedback",icon: "✍️", desc: "Per-round ratings" },
+        { x: 500, step: "AI Summary",     icon: "🤖", desc: "Hire / Hold / No Hire" },
+      ].map((s, i, arr) => (
+        <g key={i}>
+          <rect x={s.x - 40} y={70} width="80" height="100" rx="10" fill="white" stroke="#c4b5fd" strokeWidth="2" />
+          <text x={s.x} y={108} textAnchor="middle" fontSize="28">{s.icon}</text>
+          <text x={s.x} y={138} textAnchor="middle" fill="#1e293b" fontSize="10" fontWeight="700">{s.step}</text>
+          <text x={s.x} y={155} textAnchor="middle" fill="#64748b" fontSize="8">{s.desc}</text>
+          {i < arr.length - 1 && <text x={s.x + 75} y={125} textAnchor="middle" fill="#8b5cf6" fontSize="20" fontWeight="800">→</text>}
+        </g>
+      ))}
+      <rect x="60" y="200" width="480" height="100" rx="12" fill="#faf5ff" stroke="#e9d5ff" />
+      <text x="80" y="225" fill="#7c3aed" fontSize="11" fontWeight="800">AI cross-checks all rounds and flags inconsistencies</text>
+      <text x="80" y="250" fill="#475569" fontSize="10">• Generates focus areas based on candidate gaps + JD</text>
+      <text x="80" y="268" fill="#475569" fontSize="10">• Combines feedback from multiple interviewers into one summary</text>
+      <text x="80" y="286" fill="#475569" fontSize="10">• Highlights split decisions ("strong in L1, weak in L2")</text>
+    </svg>
+  ),
+
+  /* Step 7 — Offer Management */
+  offers: () => (
+    <svg viewBox="0 0 600 320" className="w-full h-full">
+      <text x="300" y="25" textAnchor="middle" fill="#475569" fontSize="11" fontWeight="700" letterSpacing="2">OFFER MANAGEMENT</text>
+      <rect x="40" y="60" width="140" height="240" rx="12" fill="white" stroke="#e2e8f0" strokeWidth="1.5" />
+      <text x="110" y="85" textAnchor="middle" fill="#1e293b" fontSize="11" fontWeight="800">Comp Breakdown</text>
+      <line x1="60" y1="95" x2="160" y2="95" stroke="#e2e8f0" />
+      <text x="60" y="120" fill="#64748b" fontSize="9">Base</text>
+      <text x="160" y="120" textAnchor="end" fill="#1e293b" fontSize="10" fontWeight="700">₹62L</text>
+      <text x="60" y="145" fill="#64748b" fontSize="9">Bonus</text>
+      <text x="160" y="145" textAnchor="end" fill="#1e293b" fontSize="10" fontWeight="700">₹8L</text>
+      <text x="60" y="170" fill="#64748b" fontSize="9">ESOP</text>
+      <text x="160" y="170" textAnchor="end" fill="#1e293b" fontSize="10" fontWeight="700">₹45L</text>
+      <line x1="60" y1="180" x2="160" y2="180" stroke="#e2e8f0" />
+      <text x="60" y="205" fill="#1e293b" fontSize="10" fontWeight="700">Total</text>
+      <text x="160" y="205" textAnchor="end" fill="#7c3aed" fontSize="13" fontWeight="800">₹70L</text>
+      <rect x="55" y="220" width="110" height="22" rx="4" fill="#ecfdf5" />
+      <text x="110" y="234" textAnchor="middle" fill="#065f46" fontSize="9" fontWeight="700">✓ Within band</text>
+      <text x="110" y="265" textAnchor="middle" fill="#7c3aed" fontSize="9" fontWeight="700">AI Recommended</text>
+      <text x="110" y="280" textAnchor="middle" fill="#64748b" fontSize="9">Based on match + tenure</text>
+
+      <rect x="220" y="60" width="160" height="240" rx="12" fill="white" stroke="#e2e8f0" strokeWidth="1.5" />
+      <text x="300" y="85" textAnchor="middle" fill="#1e293b" fontSize="11" fontWeight="800">Approval Chain</text>
+      <line x1="240" y1="95" x2="360" y2="95" stroke="#e2e8f0" />
+      {[
+        { y: 115, role: "Recruiter",     done: true },
+        { y: 145, role: "Hiring Mgr",    done: true },
+        { y: 175, role: "Finance",       done: true },
+        { y: 205, role: "VP Engineering",done: true },
+      ].map((a, i) => (
+        <g key={i}>
+          <circle cx={245} cy={a.y} r="6" fill={a.done ? "#10b981" : "#cbd5e1"} />
+          <text x={258} y={a.y + 3} fill="#475569" fontSize="9">{a.role}</text>
+          {a.done && <text x={355} y={a.y + 3} textAnchor="end" fill="#10b981" fontSize="9" fontWeight="700">✓</text>}
+        </g>
+      ))}
+      <rect x="240" y="240" width="120" height="40" rx="6" fill="#fef3c7" stroke="#fbbf24" />
+      <text x="300" y="256" textAnchor="middle" fill="#92400e" fontSize="9" fontWeight="700">⚠ Awaiting Response</text>
+      <text x="300" y="270" textAnchor="middle" fill="#92400e" fontSize="9">Day 3 of 7</text>
+
+      <rect x="420" y="60" width="140" height="240" rx="12" fill="white" stroke="#e2e8f0" strokeWidth="1.5" />
+      <text x="490" y="85" textAnchor="middle" fill="#1e293b" fontSize="11" fontWeight="800">AI Insights</text>
+      <line x1="440" y1="95" x2="540" y2="95" stroke="#e2e8f0" />
+      <rect x="430" y="105" width="120" height="55" rx="5" fill="#fff1f2" stroke="#fecdd3" />
+      <text x="438" y="121" fill="#be123c" fontSize="9" fontWeight="800">⚠ Risk</text>
+      <text x="438" y="138" fill="#475569" fontSize="8">Competing offer</text>
+      <text x="438" y="150" fill="#475569" fontSize="8">risk: HIGH</text>
+      <rect x="430" y="170" width="120" height="55" rx="5" fill="#ecfdf5" stroke="#a7f3d0" />
+      <text x="438" y="186" fill="#065f46" fontSize="9" fontWeight="800">✅ Action</text>
+      <text x="438" y="203" fill="#475569" fontSize="8">Personal HM call</text>
+      <text x="438" y="215" fill="#475569" fontSize="8">recommended</text>
+      <rect x="430" y="235" width="120" height="55" rx="5" fill="#eef2ff" stroke="#c7d2fe" />
+      <text x="438" y="251" fill="#4338ca" fontSize="9" fontWeight="800">💡 Insight</text>
+      <text x="438" y="268" fill="#475569" fontSize="8">Reference reached</text>
+      <text x="438" y="280" fill="#475569" fontSize="8">out unprompted</text>
+    </svg>
+  ),
+
+  /* Step 8 — Try it map */
+  try: () => (
+    <svg viewBox="0 0 600 320" className="w-full h-full">
+      <text x="300" y="25" textAnchor="middle" fill="#475569" fontSize="11" fontWeight="700" letterSpacing="2">RECOMMENDED DEMO PATH</text>
+      {[
+        { y: 60,  num: 1, label: "Switch persona to HR Leader", note: "See org-wide funnel metrics" },
+        { y: 100, num: 2, label: "Click any Requisition",       note: "Explore the lifecycle view" },
+        { y: 140, num: 3, label: "Expand a stage card",         note: "See candidates + AI signals" },
+        { y: 180, num: 4, label: "Open a candidate",            note: "Timeline + interview intel" },
+        { y: 220, num: 5, label: "Visit Offers tab",            note: "Comp + approval workflow" },
+        { y: 260, num: 6, label: "Try the AI Copilot",          note: "Top right · ask anything" },
+      ].map((s, i) => (
+        <g key={i}>
+          <circle cx={70} cy={s.y} r="14" fill="url(#brandGrad)" />
+          <text x={70} y={s.y + 4} textAnchor="middle" fill="white" fontSize="11" fontWeight="800">{s.num}</text>
+          <text x={100} y={s.y - 2} fill="#1e293b" fontSize="13" fontWeight="700">{s.label}</text>
+          <text x={100} y={s.y + 14} fill="#64748b" fontSize="10">{s.note}</text>
+          {i < 5 && <line x1={70} y1={s.y + 14} x2={70} y2={s.y + 26} stroke="#c7d2fe" strokeWidth="2" />}
+        </g>
+      ))}
+    </svg>
+  ),
+};
+
+const TUTORIAL_STEPS = [
+  {
+    id: "welcome",
+    diagram: "overview",
+    title: "Welcome to HumAIne",
+    subtitle: "AI-powered recruitment for project-driven hiring",
+    body: [
+      "HumAIne is built for professional services companies — IT services, consultancies, and product builders that hire for specific projects rather than generic roles.",
+      "This tutorial walks through the main capabilities in about 3 minutes. You can skip ahead, jump back, or click 'Try it now' on any step to navigate directly to that screen.",
+    ],
+    bullets: [
+      "Seven connected modules covering the full hiring lifecycle",
+      "AI signals at every stage — JD generation, candidate matching, interview kits, comp recommendations",
+      "Five role-specific views (recruiter, HM, delivery, HR, admin)",
+      "Org-wide filtering down to product/department/business unit",
+    ],
+    cta: null,
+  },
+  {
+    id: "personas",
+    diagram: "personas",
+    title: "Five personas, one app",
+    subtitle: "The same data — but seen through different lenses",
+    body: [
+      "Different roles need different views of the same hiring data. HumAIne ships with 5 personas, each with its own dashboard, navigation, and prioritised insights.",
+      "Use the 'View as' dropdown in the top bar to switch personas any time. Try a few — every screen adapts.",
+    ],
+    bullets: [
+      "Recruiter — full pipeline, alerts, AI scores",
+      "Hiring Manager — shortlisted candidates + interview feedback only",
+      "Delivery Manager — project staffing risk, time-to-fill, skill gaps",
+      "HR Leader — funnel efficiency, source ROI, hiring health metrics",
+      "Admin — system configuration, scoring weights, JD templates",
+    ],
+    cta: { label: "Try Hiring Manager view", action: "persona-hm" },
+  },
+  {
+    id: "lifecycle",
+    diagram: "lifecycle",
+    title: "Recruitment Lifecycle",
+    subtitle: "A unified view of every stage in the funnel",
+    body: [
+      "Each requisition has its own lifecycle page. Stages are vertically stacked cards — click to expand, drag candidates between stages, or expand all at once.",
+      "Each stage card shows three things at a glance: candidate count, AI signals (insights/risks/actions), and conversion rate from the previous stage.",
+    ],
+    bullets: [
+      "Sourced → Screened → Shortlisted → Interviewed → Offered → Hired",
+      "Conversion % shows where the funnel breaks down",
+      "Pulsing red dots indicate risk-flagged stages",
+      "Drag-drop candidates between stages to update status",
+    ],
+    cta: { label: "Open a Requisition", action: "open-req" },
+  },
+  {
+    id: "ai",
+    diagram: "ai",
+    title: "AI Insights — three signal types",
+    subtitle: "How the AI talks back to you",
+    body: [
+      "Throughout the app, the AI surfaces three types of signals. Each is colour-coded and contextualised to the screen you're on.",
+      "These appear inside stage cards, candidate profiles, offer pages, and the dashboard summary — never as a separate noisy feed.",
+    ],
+    bullets: [
+      "💡 Insight — observations, trends, comparative analysis",
+      "⚠️ Risk — flags requiring your attention",
+      "✅ Recommendation — suggested next actions, ranked by urgency",
+    ],
+    cta: null,
+  },
+  {
+    id: "filter",
+    diagram: "filter",
+    title: "Org-wide filtering",
+    subtitle: "Drill from organization to product in one click",
+    body: [
+      "Real organizations are hierarchical. The filter bar (just below the top navigation) lets any user scope the entire app to a Business Unit, Department, Product, Location, or Cost Center.",
+      "Filters are persistent across screens. Active filters show a coloured indicator on every page that's been narrowed.",
+    ],
+    bullets: [
+      "Multi-select per dimension — combine BU + Location for example",
+      "Admin can enable/disable each filter dimension globally",
+      "Dashboards show 'scope-filtered' badges so users always know what's visible",
+      "All metrics, charts, and lists scope automatically",
+    ],
+    cta: { label: "Try a filter", action: "open-filter-help" },
+  },
+  {
+    id: "interview",
+    diagram: "interview",
+    title: "Interview Intelligence",
+    subtitle: "From kit generation to AI-assisted hire decisions",
+    body: [
+      "Interview Intelligence runs end-to-end: generate role-specific kits, capture feedback per round, and let AI synthesise the final recommendation.",
+      "The AI cross-checks feedback across rounds — if L1 says 'strong hire' and L2 says 'weak technical', the inconsistency is flagged before a decision is made.",
+    ],
+    bullets: [
+      "AI-generated interview kits — questions tailored to the candidate's gaps + JD",
+      "Structured feedback forms — Technical / Communication / Problem Solving / Culture",
+      "AI summary combines all rounds into Hire / Hold / No Hire with confidence score",
+      "Inconsistency detection — flags split decisions automatically",
+    ],
+    cta: { label: "Open Interviews tab", action: "open-interviews" },
+  },
+  {
+    id: "offers",
+    diagram: "offers",
+    title: "Offer Management",
+    subtitle: "Where most hiring deals quietly break down",
+    body: [
+      "Once a candidate is shortlisted for an offer, HumAIne handles comp recommendations, multi-stage approval workflows, and competing-offer risk tracking — all in one place.",
+      "The lifecycle view shows a small offer status link under each Offered-stage candidate. Click it to deep-link straight into the full offer detail.",
+    ],
+    bullets: [
+      "AI-recommended compensation based on match score + market band",
+      "4-step approval chain: Recruiter → HM → Finance → VP",
+      "Response deadline tracking with risk callouts",
+      "Competing offer detection (LinkedIn signals, reference notes)",
+      "Offer revision history with full audit trail",
+    ],
+    cta: { label: "Open Offers tab", action: "open-offers" },
+  },
+  {
+    id: "try",
+    diagram: "try",
+    title: "Recommended demo path",
+    subtitle: "A 5-minute tour that shows the breadth of the platform",
+    body: [
+      "If you have just a few minutes to explore, here's the path I'd recommend. Each step shows off a different capability and they connect into a coherent story.",
+      "Feedback is welcome — use the AI Copilot button (top right) to ask the app anything, or just click around. Nothing is destructive — refresh the page to reset.",
+    ],
+    bullets: null,
+    cta: { label: "Start exploring", action: "close" },
+  },
+];
+
+const Tutorial = ({ open, onClose, onAction }) => {
+  const [step, setStep] = useState(0);
+  const total = TUTORIAL_STEPS.length;
+  const current = TUTORIAL_STEPS[step];
+  const Diagram = TutorialDiagrams[current.diagram];
+
+  // Reset to step 0 when reopened
+  useEffect(() => { if (open) setStep(0); }, [open]);
+
+  // Keyboard nav
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (e.key === "Escape") onClose();
+      else if (e.key === "ArrowRight" && step < total - 1) setStep(step + 1);
+      else if (e.key === "ArrowLeft"  && step > 0) setStep(step - 1);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open, step, total, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}>
+      <div onClick={e => e.stopPropagation()}
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[640px] flex overflow-hidden border border-slate-200">
+
+        {/* LEFT — step navigator */}
+        <aside className="w-64 bg-slate-950 text-slate-300 flex flex-col">
+          <div className="px-5 py-5 border-b border-slate-800/80">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30">
+                <BookOpen className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <div className="font-bold text-white text-sm leading-none">Tutorial</div>
+                <div className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-widest">Step {step + 1} of {total}</div>
+              </div>
+            </div>
+          </div>
+          <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
+            {TUTORIAL_STEPS.map((s, i) => {
+              const isActive = i === step;
+              const isPast = i < step;
+              return (
+                <button key={s.id} onClick={() => setStep(i)}
+                  className={`w-full flex items-start gap-3 px-3 py-2.5 rounded-lg text-left text-xs transition ${
+                    isActive ? "bg-gradient-to-r from-indigo-600/20 to-fuchsia-600/10 border border-indigo-500/30 text-white"
+                    : isPast ? "text-slate-300 hover:bg-slate-800/60"
+                    : "text-slate-500 hover:bg-slate-800/60 hover:text-slate-300"
+                  }`}>
+                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                    isActive ? "bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white"
+                    : isPast ? "bg-emerald-500 text-white"
+                    : "bg-slate-700 text-slate-400"
+                  }`}>
+                    {isPast ? "✓" : i + 1}
+                  </span>
+                  <span className="font-medium leading-tight pt-0.5">{s.title}</span>
+                </button>
+              );
+            })}
+          </nav>
+          <div className="p-3 border-t border-slate-800/80">
+            <div className="flex gap-1 mb-2">
+              {TUTORIAL_STEPS.map((_, i) => (
+                <div key={i} className={`flex-1 h-1 rounded-full transition ${i <= step ? "bg-gradient-to-r from-indigo-500 to-fuchsia-500" : "bg-slate-800"}`} />
+              ))}
+            </div>
+            <div className="text-[10px] text-slate-500 text-center">Use ← / → to navigate</div>
+          </div>
+        </aside>
+
+        {/* RIGHT — content */}
+        <div className="flex-1 flex flex-col bg-gradient-to-br from-white to-slate-50 min-w-0">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+            <div>
+              <div className="text-[10px] font-bold text-violet-600 uppercase tracking-widest">{current.subtitle}</div>
+              <div className="text-xl font-bold text-slate-900 mt-0.5">{current.title}</div>
+            </div>
+            <button onClick={onClose}
+              className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-6 space-y-5">
+            {/* Diagram */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm" style={{ height: 320 }}>
+              <Diagram />
+            </div>
+
+            {/* Body */}
+            <div className="space-y-3">
+              {current.body.map((p, i) => (
+                <p key={i} className="text-sm text-slate-700 leading-relaxed">{p}</p>
+              ))}
+            </div>
+
+            {/* Bullets */}
+            {current.bullets && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {current.bullets.map((b, i) => (
+                  <div key={i} className="flex items-start gap-2 p-2.5 rounded-lg bg-white border border-slate-100">
+                    <Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                    <span className="text-xs text-slate-700 leading-relaxed">{b}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Footer — prev / next + CTA */}
+          <div className="px-6 py-4 border-t border-slate-100 bg-white flex items-center justify-between gap-3">
+            <button onClick={() => setStep(Math.max(0, step - 1))} disabled={step === 0}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition">
+              <ChevronRight className="w-4 h-4 rotate-180" />Previous
+            </button>
+
+            <div className="flex items-center gap-2">
+              {current.cta && (
+                <button onClick={() => onAction(current.cta.action)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white border border-indigo-200 text-indigo-700 text-sm font-semibold hover:bg-indigo-50 transition">
+                  <Zap className="w-3.5 h-3.5" />{current.cta.label}
+                </button>
+              )}
+
+              {step < total - 1 ? (
+                <button onClick={() => setStep(step + 1)}
+                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 text-white text-sm font-semibold shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition">
+                  Next<ChevronRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <button onClick={onClose}
+                  className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm font-semibold shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition">
+                  <Check className="w-4 h-4" />Start Exploring
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 /* ============================================================
    PERSONA-AWARE TOPBAR — includes View As toggle
    ============================================================ */
-const TopBar = ({ onCopilot, persona, onPersonaChange }) => (
+const TopBar = ({ onCopilot, onTutorial, persona, onPersonaChange }) => (
   <div className="h-16 bg-white/80 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between px-8 sticky top-0 z-30">
     <div className="flex items-center gap-3 flex-1 max-w-md">
       <div className="relative flex-1">
@@ -2864,6 +3414,9 @@ const TopBar = ({ onCopilot, persona, onPersonaChange }) => (
     </div>
     <div className="flex items-center gap-3">
       <ViewAsToggle persona={persona} onChange={onPersonaChange} />
+      <button onClick={onTutorial} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/40 text-slate-700 text-sm font-semibold transition group">
+        <BookOpen className="w-4 h-4 text-indigo-600 group-hover:text-indigo-700" />Tutorial
+      </button>
       <button onClick={onCopilot} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 text-white text-sm font-semibold shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition">
         <Bot className="w-4 h-4" />Copilot
       </button>
@@ -4543,6 +5096,30 @@ export default function HumAIne() {
   const [requisitions] = useState(seedRequisitions);
   const [candidates, setCandidates] = useState(seedCandidates);
   const [copilotOpen, setCopilotOpen] = useState(false);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+
+  // Auto-open tutorial on first visit
+  useEffect(() => {
+    try {
+      const seen = window.localStorage.getItem("humaine_tutorial_seen");
+      if (!seen) setTutorialOpen(true);
+    } catch (e) { /* localStorage unavailable — silently skip */ }
+  }, []);
+
+  const closeTutorial = () => {
+    setTutorialOpen(false);
+    try { window.localStorage.setItem("humaine_tutorial_seen", "1"); } catch (e) {}
+  };
+
+  // Tutorial CTA actions — deep-link into the matching screen
+  const handleTutorialAction = (action) => {
+    if (action === "persona-hm")        { setPersona("hiringManager"); setView({ name: "dashboard" }); closeTutorial(); }
+    else if (action === "open-req")     { setView({ name: "requisitions" }); closeTutorial(); }
+    else if (action === "open-interviews") { setView({ name: "interviews" }); closeTutorial(); }
+    else if (action === "open-offers")  { setView({ name: "offers" }); closeTutorial(); }
+    else if (action === "open-filter-help") { closeTutorial(); /* filter bar is always visible */ }
+    else if (action === "close")        { closeTutorial(); }
+  };
 
   // ── Org filter state ──
   const [filterDimensions, setFilterDimensions] = useState(DEFAULT_FILTER_DIMENSIONS);
@@ -4605,7 +5182,7 @@ export default function HumAIne() {
           <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
           <Sidebar active={sidebarActive} onNav={nav} persona={persona} />
           <main className="flex-1 flex flex-col min-w-0" style={{ transition: "margin-left 220ms cubic-bezier(0.4,0,0.2,1)" }}>
-            <TopBar onCopilot={() => setCopilotOpen(true)} persona={persona} onPersonaChange={handlePersonaChange} />
+            <TopBar onCopilot={() => setCopilotOpen(true)} onTutorial={() => setTutorialOpen(true)} persona={persona} onPersonaChange={handlePersonaChange} />
             <PersonaBanner persona={persona} />
             <OrgFilterBar dimensions={filterDimensions} filters={orgFilters} onChange={setOrgFilters} />
             <div className="flex-1">
@@ -4653,6 +5230,7 @@ export default function HumAIne() {
           </div>
         </main>
         <CopilotDrawer open={copilotOpen} onClose={() => setCopilotOpen(false)} />
+        <Tutorial open={tutorialOpen} onClose={closeTutorial} onAction={handleTutorialAction} />
       </div>
     </OrgFilterContext.Provider>
     </PersonaContext.Provider>
